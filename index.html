@@ -52,6 +52,11 @@ main{max-width:1180px;margin:0 auto;padding:28px 28px 120px}
 .newname:hover{border-color:var(--line)}
 .newname:focus{outline:none;border-color:var(--sage);background:var(--tint)}
 .oldname{font-size:12px;color:var(--muted)}
+.namebar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.edited{font-size:11.5px;color:var(--warn)}
+.hint{font-size:11.5px;color:var(--muted)}
+.fields .lab{display:flex;justify-content:space-between;gap:8px}
+.fields .lab button{font-size:11.5px}
 .oldname s{text-decoration-color:var(--sage)}
 .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 14px;margin-top:12px}
 .fields label{display:flex;flex-direction:column;font-size:11.5px;color:var(--muted);gap:3px}
@@ -99,6 +104,8 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
 </main>
 <div id="bar"><div class="in"><span id="barText"></span><button class="btn ghost small" id="clearSaved" type="button">Clear saved</button><button class="btn spacer" id="saveAll" type="button">Save all ready</button></div></div>
 <datalist id="clientList"></datalist>
+<datalist id="typeList"></datalist>
+<datalist id="folderList"></datalist>
 
 <script>/* Indepth document naming rules. Every name here comes from the approved
    Document Naming Standard (November 2026). Runs in the browser and in Node tests. */
@@ -134,7 +141,20 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
     while ((m = DATE_ANY.exec(text))) { const d = parseOne(m[1]); if (d) out.push({ date: d, index: m.index }); }
     return out;
   }
-  function firstDate(text) { const a = allDates(text); return a.length ? a[0].date : null; }
+  const ORD = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9, tenth:10, eleventh:11, twelfth:12, thirteenth:13, fourteenth:14,
+    fifteenth:15, sixteenth:16, seventeenth:17, eighteenth:18, nineteenth:19, twentieth:20, thirtieth:30 };
+  function wordDay(w) {
+    w = w.toLowerCase().replace(/\s+/g, "-");
+    if (ORD[w]) return ORD[w];
+    const m = w.match(/^(twenty|thirty)-(\w+)$/); if (m && ORD[m[2]] && ORD[m[2]] < 10) return (m[1] === "twenty" ? 20 : 30) + ORD[m[2]];
+    const n = w.match(/^(\d{1,2})(?:st|nd|rd|th)$/); return n ? +n[1] : null;
+  }
+  const WORD_DATE = new RegExp("(?:the\\s+)?((?:twenty|thirty)[- ]\\w+|\\w+|\\d{1,2}(?:st|nd|rd|th))\\s+day\\s+of\\s+" + MON_RE + ",?\\s+(\\d{4})", "i");
+  function wordDate(text) {
+    const m = (text || "").match(WORD_DATE); if (!m) return null;
+    const d = wordDay(m[1]); return d ? mk(m[3], MONTHS[m[2].toLowerCase()], d) : null;
+  }
+  function firstDate(text) { const a = allDates(text); return a.length ? a[0].date : wordDate(text); }
   function dateAfter(text, label) {
     const re = new RegExp(label + "\\s*:?\\s*" + DATE_ANY.source, "i");
     const m = text.match(re); return m ? parseOne(m[1]) : null;
@@ -195,9 +215,12 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
         if (!hit) continue;
         const cover = hit / ct.length, prec = hit / ft.length;
         let score = cover * 0.7 + prec * 0.3;
-        if (norm(cand) === norm(f)) score = 1.2;
-        if (cover === 1 && ct.length >= 2) score += 0.15;
-        if (ct.length === 1 && ft.length > 1) score *= 0.5;
+        const sameKind = isCompany(cand) === isCompany(f) && /trust/i.test(cand) === /trust/i.test(f);
+        if (norm(cand) === norm(f)) score = sameKind ? 1.25 : 1.0;
+        else {
+          if (cover === 1 && ct.length >= 2) score += 0.15;
+          if (ct.length === 1 && ft.length > 1) score *= 0.5;
+        }
         const prev = res.get(f) || 0; if (score > prev) res.set(f, score);
       }
     }
@@ -379,8 +402,9 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
   // ---------- detection ----------
   function squash(s) { return s.toLowerCase().replace(/\s+/g, ""); }
 
-  function detect(rawText, fileName) {
-    const text = (rawText || "").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ");
+  function detect(rawText, fileName, opts) {
+    opts = opts || {};
+    const text = (rawText || "").replace(/\u00a0/g, " ").replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, " ");
     const head = text.slice(0, 4000);
     const sq = squash(text);
     const fn = (fileName || "").replace(/\.[a-z0-9]+$/i, "");
@@ -450,8 +474,11 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
     }
 
     // --- company documents
-    if (/Certificate of Registration of a Company/i.test(text)) set("cert_reg", 0.92);
-    if (/\bForm 201\b|Application for registration as an Australian company/i.test(text)) set("f201", 0.85);
+    if (/Certificate of Registration\b.{0,40}?of a Company/i.test(text) || (/This is to certify that/i.test(head) && /Australian Company Number/i.test(head) && /registered company under the Corporations Act/i.test(text))) set("cert_reg", 0.92);
+    if (/\bForm 201\b|Application for registration as an Australian company/i.test(text)) {
+      if ((opts.pages || 0) > 5 || /Consent to Act|Share Certificate|Register of Members|Allotment Journal/i.test(text)) { set("incorp", 0.86); r.notes.push("Looks like the whole incorporation pack (Form 201 plus the share and register pages). Switch to Form 201 if it's the form on its own"); }
+      else set("f201", 0.85);
+    }
     if (/post[- ]incorporation/i.test(text)) set("f362_post", 0.8);
     else if (/\bForm 362\b|appointment (?:or cessation )?of (?:a )?registered agent/i.test(text)) set("f362_agent", 0.82);
     if (/\bForm 484\b|Change to company details/i.test(text)) set("f484", 0.86);
@@ -460,7 +487,7 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
     if (/(Current|Historical)[\s&]*(?:Historical )?(?:Company |Organisation )?Extract|ASIC Company Details|Organisation details/i.test(head) && /ASIC|Australian Securities/i.test(text)) set("extract", 0.8);
     if (/corporate key/i.test(head) && !/annual (company )?statement/i.test(head)) set("corp_key", 0.7);
     if (/business name/i.test(head) && /regist/i.test(head)) set("bn_reg", 0.75);
-    if (/Constitution/i.test(text.slice(0, 1500)) && /company|replaceable rules|members/i.test(text)) set("constitution", 0.8);
+    if (/Constitution/i.test(text.slice(0, 1500)) && /company|replaceable rules|members/i.test(text)) set("constitution", /Constitution of\b/i.test(text.slice(0, 300)) ? 0.96 : 0.8);
     if (/consent to act as (?:a )?director/i.test(text) && /(share|member)/i.test(text)) set("incorp", 0.7);
     if (/Resolution of (?:the )?(?:sole )?Director|Directors'? Resolution|Circular resolution/i.test(head)) set("dir_res", 0.8);
 
@@ -536,8 +563,10 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
       r.date = firstDate(head); r.fy = fyOf(r.date);
     } else if (t === "abn_advice") {
       r.date = (text.match(new RegExp("Active\\s+(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i")) || [])[1] ? parseOne(text.match(new RegExp("Active\\s+(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i"))[1]) : firstDate(head);
-    } else if (t === "cert_reg" || t === "constitution") {
-      r.date = dateAfter(text, "registered (?:in|on)?") || dateAfter(text, "commenced registration on") || firstDate(head);
+    } else if (["cert_reg", "constitution", "f201", "f362_post", "incorp", "asic_docs", "corp_key"].includes(t)) {
+      const reg = text.match(/commencement of registration is\s+(.{0,60}?\d{4})/i);
+      r.date = (reg && (wordDate(reg[1]) || firstDate(reg[1]))) || dateAfter(text, "registered by the ASIC on") || dateAfter(text, "Date of registration") ||
+        (t === "f201" || t === "incorp" ? dateAfter(text, "Capacity Director Date") || dateAfter(text, "\\bDate") : null) || wordDate(text) || firstDate(head);
     } else {
       r.date = dateAfter(head, "Date of issue") || dateAfter(head, "Date") || dateFromName(fn) || firstDate(head);
     }
@@ -557,14 +586,23 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
     grab(/on behalf of\s+(.+?)\s+I hereby/i);
     grab(/Compilation report to\s+(.+?)\s+We have/i);
     grab(/Financial Statements\s+(.+?)\s+Compilation Report/i);
-    grab(/Organi[sz]ational Chart\s*-\s*(.+?)\s{2,}/i);
+    grab(/Organi[sz]ational Chart\s*-\s*(.+?)\s+\1/i);
+    grab(/Constitution of\s+([A-Z][\w&'.\- ]{1,60}?(?:Pty\.? Ltd\.?|Pty\.? Limited|Limited|Ltd\.?))\b/i);
+    grab(/This is to certify that\s+(?:.{0,70}?\s)?([A-Z0-9][A-Z0-9&'.\- ]{1,60}?\s(?:PTY\.? LTD\.?|PTY\.? LIMITED|LIMITED|LTD))\b/);
+    { const m = text.match(/proposed company name\W+([A-Za-z0-9&'\- ]{2,60}?)\s+Name reservation/i);
+      if (m) { const le = (text.match(/Legal elements to apply:?\s+(Pty\.? Ltd\.?|Pty\.? Limited|Limited|Ltd)/i) || [])[1] || "Pty Ltd"; c.push(tidyName(m[1].trim() + " " + le)); } }
+    grab(/(?:Application for Shares|Member\/?s Resolution|Consent to Act|Share Certificate)\s+([A-Z][\w&'.\- ]{1,60}?(?:Pty\.? Ltd\.?|Limited))\b/);
     grab(/Trustees? (?:for|of)\s+(.+?)\s+Re:/i);
     grab(/\bOf:\s*(.+?)\s+Held at/i);
     grab(/\b([A-Z][A-Z'\-]{2,}, [A-Z][A-Z]+(?: [A-Z][A-Z]+)?)\b/);
     grab(/ABN Advice Letter\s+[\d ]{11,14}\s+(.+?)\s+Active/i);
     grab(/Your name:\s*(.+?)\s+Application reference/i);
-    grab(/Name of (?:the )?trust\s*:?\s+(.+?)\s{2,}/i);
+
     if (["el", "proposal", "fbt_el"].includes(t)) { const first = text.trim().split(/\s{2,}|\n/)[0]; if (first && first.length < 80) c.push(tidyName(first)); }
+    { const NOT = /indepth|acis services|evolve accounting|redchip|infotrack|ignition|australian taxation|securities and investments|cas ?360/i;
+      const seen = {}; const re = /\b([A-Z][A-Za-z0-9&'.\-]+(?: [A-Z&][A-Za-z0-9&'.\-]*){0,5} (?:Pty\.? Ltd\.?|PTY\.? LTD\.?|Family Trust|FAMILY TRUST|Super(?:annuation)? Fund|SUPER(?:ANNUATION)? FUND|Trust|TRUST))\b/g; let m;
+      while ((m = re.exec(text))) { const n = tidyName(m[1]); if (!NOT.test(n) && n.length < 70) seen[n] = (seen[n] || 0) + 1; }
+      Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([n]) => c.push(n)); }
     for (let i = c.length - 1; i >= 0; i--) if (!c[i] || c[i].length > 70 || /declar|substantiation|signature/i.test(c[i])) c.splice(i, 1);
 
     // extra field defaults
@@ -595,7 +633,7 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
     return { name, folder, missing, type: t };
   }
 
-  const api = { TYPES: T, BY_ID, detect, build, matchClient, scanForClients, tidyName, folderDisplay, isCompany, parseOne, ymd, fyOf, isoOf, safeFile };
+  const api = { wordDate, TYPES: T, BY_ID, detect, build, matchClient, scanForClients, tidyName, folderDisplay, isCompany, parseOne, ymd, fyOf, isoOf, safeFile };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.NamingRules = api;
 })(this);
 </script>
@@ -611,7 +649,7 @@ const CONFIG = {
 const R = window.NamingRules;
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const rows = [];
+const rows = []; window.__rows = rows;
 let folders = [];
 let msalApp = null, account = null;
 
@@ -699,16 +737,24 @@ async function readPdf(row, buf) {
   let text = parts.join("\n");
   const firstChars = (parts[0] || "").replace(/\s/g, "").length + (parts[1] || "").replace(/\s/g, "").length;
   if (firstChars < 80) {
-    row.ocr = true; setStatus(row, "busy", "Scanned document, reading the text…");
-    const out = [];
-    for (let i = 1; i <= Math.min(n, 2); i++) {
+    row.ocr = true; row.pages = n;
+    const out = [], ocrPage = async (i) => {
+      setStatus(row, "busy", `Scanned document, reading page ${i} of ${n}…`);
       const p = await pdf.getPage(i), vp = p.getViewport({ scale: 2 });
       const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
       await p.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
       out.push(await ocr(cv));
+    };
+    for (let i = 1; i <= Math.min(n, 2); i++) await ocrPage(i);
+    // keep reading (up to page 6) while the date or client is still missing
+    for (let i = 3; i <= Math.min(n, 6); i++) {
+      const d = R.detect(out.join("\n"), row.file.name, { pages: n });
+      const t = R.BY_ID[d.type], haveDate = t && (t.date === "fy" ? d.fy : d.date);
+      if (d.type && haveDate && d.clientCandidates.length) break;
+      await ocrPage(i);
     }
     text = out.join("\n") + "\n" + text;
-  }
+  } else row.pages = n;
   return text;
 }
 async function readFile(row) {
@@ -741,7 +787,7 @@ async function processQueue() {
     try {
       const text = await readFile(row);
       row.text = text;
-      const d = R.detect(text, row.file.name);
+      const d = R.detect(text, row.file.name, { pages: row.pages || 0 });
       row.detection = d;
       row.type = d.type || "";
       row.date = R.isoOf(d.date);
@@ -776,13 +822,25 @@ function assignClient(row) {
   else if (m[0] && m[0].score >= 0.5) { pick = m[0].folder; }
   row.clientFolder = pick || ""; row.clientUnsure = !sure; row.clientName = "";
 }
-function current(row) { return R.build(row); }
+function defaultClientName(row) {
+  const doc = row.detection && row.detection.clientCandidates[0];
+  const fold = R.folderDisplay(row.clientFolder);
+  if (!doc) return fold;
+  const tok = (x) => x.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  const ft = new Set(tok(fold));
+  return tok(doc).every((w) => ft.has(w)) ? fold : doc;
+}
+function current(row) { return R.build(Object.assign({}, row, { clientName: row.clientName || defaultClientName(row) })); }
 function setStatus(row, state, msg) { row.state = state; row.msg = msg; renderRow(row); }
 
-function typeOptions(sel) {
-  const groups = {}; R.TYPES.forEach((t) => (groups[t.group] = groups[t.group] || []).push(t));
-  return `<option value="">Choose a document type…</option>` + Object.entries(groups).map(([g, ts]) =>
-    `<optgroup label="${esc(g)}">${ts.map((t) => `<option value="${t.id}"${t.id === sel ? " selected" : ""}>${esc(t.label)}</option>`).join("")}</optgroup>`).join("");
+const typeLabel = (id) => (R.BY_ID[id] ? R.BY_ID[id].label : "");
+function typeByLabel(v) { v = (v || "").trim().toLowerCase(); return R.TYPES.find((t) => t.label.toLowerCase() === v) || null; }
+function buildTypeList() {
+  $("#typeList").innerHTML = R.TYPES.map((t) => `<option value="${esc(t.label)}" label="${esc(t.group)}"></option>`).join("");
+}
+function folderSuggestions(fy) {
+  const y = fy || new Date().getFullYear();
+  return [`${y}/BAS and IAS`, `${y}/Tax Returns and Financials`, `${y}/Workpapers`, `${y}/Tax Planning`, "Correspondence", "Corporate Compliance", "Permanent", "Engagement", "AML"];
 }
 function renderRow(row) {
   let el = document.getElementById("r" + row.id);
@@ -795,10 +853,14 @@ function renderRow(row) {
   const b = current(row), t = R.BY_ID[row.type];
   const ext = "." + (row.file.name.split(".").pop() || "pdf").toLowerCase();
   const finalName = (row.nameEdited ? row.customName : b.name) + ext;
-  row.finalName = finalName; row.finalFolder = b.folder;
+  const folderPath = row.folderEdited ? row.customFolder.split("/").map((x) => R.safeFile(x)).filter(Boolean).join("/") : b.folder;
+  row.finalName = finalName; row.finalFolder = folderPath;
   const usesClient = t && /c\.client\b/.test(t.name.toString());
-  const crumbs = [CONFIG.clientsRoot, row.clientFolder || "(choose a client)"].concat(b.folder ? b.folder.split("/") : []);
-  const missing = b.missing.filter((x) => x !== "client" || !row.clientFolder);
+  const crumbs = [CONFIG.clientsRoot, row.clientFolder || "(choose a client)"].concat(folderPath ? folderPath.split("/") : []);
+  let missing = b.missing.filter((x) => x !== "client" || !row.clientFolder);
+  if (row.nameEdited) missing = missing.filter((x) => !["date", "year", "BAS period"].includes(x) && !(t && t.extra && x === t.extra.split(" (")[0].toLowerCase()));
+  if (!t && row.nameEdited && row.customName.trim()) missing = missing.filter((x) => x !== "document type");
+  if (row.nameEdited && !row.customName.trim()) missing.push("file name");
   const knownClient = !folders.length || folders.includes(row.clientFolder);
   let status = "";
   if (row.state === "saved") status = `<span class="status ok">Saved to SuiteFiles. ${row.webUrl ? `<a href="${esc(row.webUrl)}" target="_blank" rel="noopener">Open it</a>` : ""}</span>`;
@@ -809,7 +871,7 @@ function renderRow(row) {
   else if (!knownClient) status = `<span class="status warn">That client folder isn't in SuiteFiles. Pick one from the list.</span>`;
   else status = `<span class="status ok">Ready to save.</span>`;
   if (row.note && row.state !== "saved") status += ` <span class="status warn">${esc(row.note)}</span>`;
-  const ready = row.state !== "saved" && row.state !== "saving" && !missing.length && knownClient && !!t;
+  const ready = row.state !== "saved" && row.state !== "saving" && !missing.length && knownClient && (!!t || row.nameEdited);
   row.ready = ready && row.state !== "exists";
   const dateField = !t ? "" : t.date === "fy"
     ? `<label>Financial year<input type="number" min="2000" max="2100" data-f="fy" value="${esc(row.fy)}"></label>`
@@ -819,16 +881,20 @@ function renderRow(row) {
     <div class="thumb">${esc(ext.slice(1))}</div>
     <div>
       <div class="path">${crumbs.map((c, i) => (i ? '<span class="sep">›</span>' : "") + `<span>${i === 1 ? "<b>" + esc(c) + "</b>" : esc(c)}</span>`).join("")}</div>
-      <input class="newname" data-f="customName" value="${esc(finalName.slice(0, -ext.length))}" aria-label="New file name" ${row.state === "saved" ? "disabled" : ""}>
-      <div class="oldname">Was <s>${esc(row.file.name)}</s>${row.ocr ? " (read from a scan)" : ""}</div>
+      <div class="namebar">
+        <input class="newname" data-f="customName" value="${esc(finalName.slice(0, -ext.length))}" aria-label="New file name" title="Click to change the name" ${row.state === "saved" ? "disabled" : ""}>
+      </div>
+      <div class="oldname">Was <s>${esc(row.file.name)}</s>${row.ocr ? " (read from a scan)" : ""}
+        ${row.state === "saved" ? "" : row.nameEdited ? ` <span class="edited">Name typed by you, so changes below won't update it.</span> <button class="link" data-act="resetName">Use the standard name</button>` : ` <span class="hint">Click the name to change it.</span>`}</div>
       <div class="fields">
-        <label class="wide">Document type<select data-f="type">${typeOptions(row.type)}</select></label>
+        <label class="wide">Document type<input list="typeList" data-f="typeLabel" value="${esc(typeLabel(row.type))}" placeholder="Search, e.g. ICA, trust deed, BAS"></label>
         <label class="wide">Client folder<input list="clientList" data-f="clientFolder" value="${esc(row.clientFolder)}" class="${row.clientUnsure && row.clientFolder ? "unsure" : ""}" placeholder="Start typing a client name"></label>
         ${dateField}${icaYear}
-        ${usesClient ? `<label>Name in file<input data-f="clientName" value="${esc(row.clientName || R.folderDisplay(row.clientFolder))}"></label>` : ""}
+        ${usesClient ? `<label>Name in file<input data-f="clientName" value="${esc(row.clientName || defaultClientName(row))}"></label>` : ""}
         ${t && t.extra ? `<label class="wide">${esc(t.extra)}<input data-f="extra" value="${esc(row.extra)}"></label>` : ""}
         ${t && (t.canSign || t.keepSigned) ? `<label class="check"><input type="checkbox" data-f="signed" ${row.signed ? "checked" : ""}>Signed copy</label>` : ""}
         ${t && t.forBas ? `<label class="check"><input type="checkbox" data-f="forBas" ${row.forBas ? "checked" : ""}>Pulled for a BAS</label>${row.forBas ? `<label>BAS period end<input type="date" data-f="basDate" value="${esc(row.basDate)}"></label>` : ""}` : ""}
+        <label class="wide"><span class="lab"><span>Save into (inside the client folder)</span>${row.folderEdited ? `<button class="link" data-act="resetFolder" type="button">Use the standard folder</button>` : ""}</span><input list="folderList" data-f="customFolder" value="${esc(folderPath)}" class="${row.folderEdited ? "unsure" : ""}" placeholder="e.g. 2026/Workpapers"></label>
       </div>
       <div class="foot">${status}
         <span class="spacer"></span>
@@ -836,6 +902,7 @@ function renderRow(row) {
       </div>
     </div>`;
   placeThumb(el, row);
+  $("#folderList").innerHTML = folderSuggestions(b.type ? (current(row).folder.match(/^\d{4}/) || [])[0] : null).map((f) => `<option value="${esc(f)}">`).join("");
   if (row.state === "saved") el.querySelectorAll("input,select").forEach((i) => (i.disabled = true));
   updateBar();
 }
@@ -858,7 +925,9 @@ function updateBar() {
 $("#list").addEventListener("input", (e) => {
   const el = e.target.closest("[data-f]"); if (!el) return;
   const row = rows.find((r) => "r" + r.id === e.target.closest(".row").id); const f = el.dataset.f;
-  if (f === "customName") { row.nameEdited = true; row.customName = el.value; row.finalName = el.value; return; }
+  if (f === "customName") { if (!row.nameEdited) { row.nameEdited = true; } row.customName = el.value; clearTimeout(row._n); row._n = setTimeout(() => { const pos = el.selectionStart; renderRow(row); const a = document.querySelector(`#r${row.id} [data-f="customName"]`); if (a) { a.focus(); try { a.setSelectionRange(pos, pos); } catch (x) {} } }, 700); return; }
+  if (f === "typeLabel") { const tt = typeByLabel(el.value); if (tt && tt.id !== row.type) { row.type = tt.id; row.note = ""; if (["error", "exists"].includes(row.state)) row.state = "ready"; renderRow(row); } return; }
+  if (f === "customFolder") { row.folderEdited = true; row.customFolder = el.value; }
   if (el.type === "checkbox") return;
   if (el.tagName === "SELECT") return;
   row[f] = el.value;
@@ -872,15 +941,27 @@ $("#list").addEventListener("change", (e) => {
   if (f === "customName") return;
   if (el.type === "checkbox") { row[f] = el.checked; if (f === "signed") row.signedSuffix = el.checked ? (row.signedSuffix || "_signed") : ""; }
   else row[f] = el.value;
-  if (f === "type") { row.nameEdited = false; row.note = ""; }
+  if (f === "typeLabel" || f === "customFolder") return;
   if (f === "clientFolder") { row.clientUnsure = false; row.clientName = ""; }
-  if (f !== "customName") row.nameEdited = false;
   if (["error", "exists"].includes(row.state)) row.state = "ready";
   renderRow(row);
+});
+$("#list").addEventListener("focusin", (e) => {
+  const el = e.target; if (!el.matches || !el.matches('[data-f="typeLabel"],[data-f="clientFolder"],[data-f="customFolder"]')) return;
+  el.dataset.prev = el.value; el.placeholder = el.value || el.placeholder; el.value = "";
+});
+$("#list").addEventListener("focusout", (e) => {
+  const el = e.target; if (!el.dataset || el.dataset.prev === undefined) return;
+  if (!el.value) el.value = el.dataset.prev;
+  const row = rows.find((r) => "r" + r.id === el.closest(".row").id); delete el.dataset.prev;
+  if (el.dataset.f === "typeLabel" && !typeByLabel(el.value)) { el.value = typeLabel(row.type); }
+  if (el.dataset.f === "customFolder" && el.value === (row.finalFolder || "") && !row.folderEdited) return;
 });
 $("#list").addEventListener("click", (e) => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const row = rows.find((r) => "r" + r.id === e.target.closest(".row").id); const act = b.dataset.act;
+  if (act === "resetName") { row.nameEdited = false; row.customName = ""; renderRow(row); return; }
+  if (act === "resetFolder") { row.folderEdited = false; row.customFolder = ""; renderRow(row); return; }
   if (act === "remove") { rows.splice(rows.indexOf(row), 1); document.getElementById("r" + row.id).remove(); updateBar(); }
   if (act === "download") { const a = document.createElement("a"); a.href = URL.createObjectURL(row.file); a.download = row.finalName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
   if (act === "save") saveRow(row, "fail");
@@ -946,6 +1027,7 @@ $("#file").onchange = (e) => { addFiles([...e.target.files]); e.target.value = "
 ["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === "drop" || !e.relatedTarget) drop.classList.remove("over"); }));
 document.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]); });
 
+buildTypeList();
 initAuth();
 </script>
 </body>
