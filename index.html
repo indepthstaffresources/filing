@@ -362,11 +362,11 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
   // Corporate Compliance
   add({ id: "constitution", group: "Corporate Compliance", label: "Constitution", date: "date", folder: F.cc, name: (c) => `${c.ymd} Constitution - ${c.client}` });
   add({ id: "cert_reg", group: "Corporate Compliance", label: "Certificate of registration", date: "date", folder: F.cc, name: (c) => `${c.ymd} Certificate of Registration - ${c.client}` });
-  add({ id: "f201", group: "Corporate Compliance", label: "Form 201 (pre-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Pre-incorporation Documents (Signed)` });
-  add({ id: "f362_post", group: "Corporate Compliance", label: "Form 362 (post-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Post-incorporation Documents (Signed)` });
-  add({ id: "incorp", group: "Corporate Compliance", label: "Incorporation documents from binder", date: "date", folder: F.cc, name: (c) => `${c.ymd} Incorporation Documents (Signed)` });
+  add({ id: "f201", group: "Corporate Compliance", label: "Form 201 (pre-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Pre-incorporation Documents - ${c.client} (Signed)` });
+  add({ id: "f362_post", group: "Corporate Compliance", label: "Form 362 (post-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Post-incorporation Documents - ${c.client} (Signed)` });
+  add({ id: "incorp", group: "Corporate Compliance", label: "Incorporation documents from binder", date: "date", folder: F.cc, name: (c) => `${c.ymd} Incorporation Documents - ${c.client} (Signed)` });
   add({ id: "asic_docs", group: "Corporate Compliance", label: "ASIC documents scanned together", date: "date", folder: F.cc, name: (c) => `${c.ymd} ASIC Documents - ${c.client}` });
-  add({ id: "corp_key", group: "Corporate Compliance", label: "Corporate key", date: "date", folder: F.cc, name: (c) => `${c.ymd} Corporate Key` });
+  add({ id: "corp_key", group: "Corporate Compliance", label: "Corporate key", date: "date", folder: F.cc, name: (c) => `${c.ymd} Corporate Key - ${c.client}` });
   add({ id: "dir_res", group: "Corporate Compliance", label: "Directors resolution", date: "date", folder: F.cc, name: (c) => `${c.ymd} - ${c.client} - Directors Resolution (Signed)` });
   add({ id: "f484", group: "Corporate Compliance", label: "Form 484 (change to company details)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Form 484 - ${c.client}` });
   add({ id: "f480", group: "Corporate Compliance", label: "Form 480 (annual review)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Form 480 - ${c.client}` });
@@ -386,9 +386,9 @@ footer{color:var(--muted);font-size:12px;margin-top:30px}
   add({ id: "variation", group: "Permanent", label: "Deed of variation", date: "date", folder: F.perm, name: (c) => `${c.ymd} Deed of Variation - ${c.client} (Signed)` });
   add({ id: "fte", group: "Permanent", label: "Family trust election", date: "date", folder: F.perm, name: (c) => `${c.ymd} Family Trust Election - ${c.client} (Signed)` });
   add({ id: "div7a", group: "Permanent", label: "Division 7A loan agreement", date: "fy", folder: F.perm, name: (c) => `${c.fy} Division 7A Loan Agreement - ${c.client} (Signed)` });
-  add({ id: "legal_scope", group: "Permanent", label: "Legal scope statement", date: "date", folder: F.perm, name: (c) => `${c.ymd} Legal Scope Statement` });
-  add({ id: "trustee_decl", group: "Permanent", label: "SMSF trustee declaration", date: "date", folder: F.perm, extra: "Trustee name", name: (c) => `${c.ymd} Trustee Declaration - ${c.extra || "[Trustee name]"}` });
-  add({ id: "smsf_minutes", group: "Permanent", label: "SMSF minutes", date: "date", folder: F.perm, extra: "Topic and member (e.g. Cessation of Membership - Jane Smith)", name: (c) => `${c.ymd} Minutes - ${c.extra || "[Topic - Member]"}` });
+  add({ id: "legal_scope", group: "Permanent", label: "Legal scope statement", date: "date", folder: F.perm, name: (c) => `${c.ymd} Legal Scope Statement - ${c.client}` });
+  add({ id: "trustee_decl", group: "Permanent", label: "SMSF trustee declaration", date: "date", folder: F.perm, extra: "Trustee name", name: (c) => `${c.ymd} Trustee Declaration - ${c.extra || "[Trustee name]"} - ${c.client}` });
+  add({ id: "smsf_minutes", group: "Permanent", label: "SMSF minutes", date: "date", folder: F.perm, extra: "Topic and member (e.g. Cessation of Membership - Jane Smith)", name: (c) => `${c.ymd} Minutes - ${c.extra || "[Topic - Member]"} - ${c.client}` });
   add({ id: "death_cert", group: "Permanent", label: "Death certificate", date: "date", folder: F.perm, extra: "Name of deceased", name: (c) => `${c.ymd} Death Certificate (${c.extra || "[Name]"})` });
 
   // Correspondence
