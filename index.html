@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document Filing | Indepth Accounting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+:root{
+  --sage:#94B6AB; --deep:#56776C; --ink:#414042; --paper:#FFFFFF;
+  --tint:#F1F6F4; --tint2:#DDE9E4; --line:#D3DDD9; --muted:#7C8481; --warn:#9A5B2E; --warnbg:#FBF3EC; --bad:#9B3D3D;
+  --font:"Montserrat","Century Gothic",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --ink:#ECEFEE; --paper:#414042; --tint:#4A4B4D; --tint2:#55625E; --line:#5E6264; --muted:#B5BBB9; --deep:#A9C7BD; --warn:#E3B48C; --warnbg:#4F4640; --bad:#E39A9A; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:400 14px/1.5 var(--font)}
+button,input,select{font:inherit;color:inherit}
+header{background:#56776C;color:#fff;display:flex;align-items:center;gap:20px;padding:14px 28px}
+header img{height:30px;display:block}
+header h1{font-weight:500;font-size:16px;margin:0;padding-left:20px;border-left:1px solid rgba(255,255,255,.4);letter-spacing:.02em}
+header .who{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px}
+header button{background:transparent;border:1px solid rgba(255,255,255,.7);color:#fff;border-radius:3px;padding:6px 14px;cursor:pointer}
+header button:hover{background:rgba(255,255,255,.12)}
+main{max-width:1180px;margin:0 auto;padding:28px 28px 120px}
+.notice{border-left:3px solid var(--sage);background:var(--tint);padding:10px 14px;margin:0 0 18px;font-size:13px}
+.notice.warn{border-color:var(--warn);background:var(--warnbg)}
+#drop{border:1.5px dashed var(--sage);border-radius:4px;padding:46px 24px;text-align:center;cursor:pointer;transition:background .15s}
+#drop.over{background:var(--tint)}
+#drop strong{display:block;font-weight:500;font-size:18px;color:var(--deep);margin-bottom:6px}
+#drop span{color:var(--muted);font-size:13px}
+#drop.compact{padding:14px;display:flex;justify-content:center;gap:10px;align-items:baseline}
+#drop.compact strong{font-size:14px;margin:0}
+#list{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+.row{display:grid;grid-template-columns:88px 1fr;gap:18px;border:1px solid var(--line);border-radius:4px;padding:16px;background:var(--paper)}
+.row.saved{background:var(--tint)}
+.row.saved .fields,.row.saved .thumb{display:none}
+.row.saved{grid-template-columns:1fr;padding:12px 16px}
+.row.saved .newname{font-size:15px}
+.thumb{width:88px;height:118px;border:1px solid var(--line);background:var(--tint);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:11px;color:var(--muted);text-transform:uppercase}
+.thumb img,.thumb canvas{max-width:100%;max-height:100%}
+.path{font-size:12px;color:var(--deep);display:flex;flex-wrap:wrap;gap:4px}
+.path b{font-weight:500}
+.path .sep{color:var(--sage)}
+.newname{font-size:18px;font-weight:500;margin:2px 0 2px;word-break:break-word;border:1px solid transparent;border-radius:3px;padding:1px 4px;margin-left:-5px;width:calc(100% + 5px);background:transparent}
+.newname:hover{border-color:var(--line)}
+.newname:focus{outline:none;border-color:var(--sage);background:var(--tint)}
+.oldname{font-size:12px;color:var(--muted)}
+.oldname s{text-decoration-color:var(--sage)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 14px;margin-top:12px}
+.fields label{display:flex;flex-direction:column;font-size:11.5px;color:var(--muted);gap:3px}
+.fields input,.fields select{border:1px solid var(--line);border-radius:3px;padding:6px 8px;background:var(--paper);font-size:13px}
+.fields input:focus,.fields select:focus{outline:2px solid var(--sage);outline-offset:-1px}
+.fields .wide{grid-column:span 2}
+.fields .check{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:var(--ink);padding-top:18px}
+.fields input.unsure{border-color:var(--warn);background:var(--warnbg)}
+.foot{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.status{font-size:12.5px}
+.status.ok{color:var(--deep)} .status.warn{color:var(--warn)} .status.bad{color:var(--bad)}
+.status a{color:inherit}
+.btn{border:1px solid var(--deep);background:var(--deep);color:#fff;border-radius:3px;padding:7px 16px;cursor:pointer;font-weight:500;font-size:13px}
+.btn:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;filter:none}
+.btn.ghost{background:transparent;color:var(--deep)}
+.btn.small{padding:5px 12px;font-size:12.5px}
+.spacer{margin-left:auto}
+.link{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12.5px;padding:0}
+#bar{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--line);padding:12px 28px;display:none}
+#bar .in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:16px}
+#bar.show{display:block}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--tint2);border-top-color:var(--deep);border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+footer{color:var(--muted);font-size:12px;margin-top:30px}
+@media (max-width:640px){.row{grid-template-columns:1fr}.thumb{display:none}.fields .wide{grid-column:auto}header{padding:12px 16px}main{padding:18px 16px 120px}}
+</style>
+</head>
+<body>
+<header>
+  <img src="data:image/png;base64,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" alt="Indepth Accounting">
+  <h1>Document Filing</h1>
+  <div class="who"><span id="who"></span><button id="signin" type="button">Sign in with Microsoft</button></div>
+</header>
+<main>
+  <div id="msg"></div>
+  <div id="drop" tabindex="0" role="button" aria-label="Add documents">
+    <strong>Drop documents here, or click to choose</strong>
+    <span>PDFs, scans, photos and Word documents. Each one gets its approved name and SuiteFiles folder. Nothing is saved until you check it.</span>
+  </div>
+  <input type="file" id="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.docx,.doc,.xlsx,.xls,.msg">
+  <div id="list"></div>
+  <footer>Documents are read in your browser. Only the files you save are sent, straight to SuiteFiles under your own Microsoft sign-in.</footer>
+</main>
+<div id="bar"><div class="in"><span id="barText"></span><button class="btn ghost small" id="clearSaved" type="button">Clear saved</button><button class="btn spacer" id="saveAll" type="button">Save all ready</button></div></div>
+<datalist id="clientList"></datalist>
+
+<script>/* Indepth document naming rules. Every name here comes from the approved
+   Document Naming Standard (November 2026). Runs in the browser and in Node tests. */
+(function (root) {
+  "use strict";
+
+  const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+    january: 1, february: 2, march: 3, april: 4, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+  const MON_RE = "(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
+
+  // ---------- dates ----------
+  function mk(y, m, d) {
+    y = +y; m = +m; d = +d;
+    if (y < 100) y += 2000;
+    if (!(y > 1980 && y < 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.getUTCDate() === d ? dt : null;
+  }
+  function parseOne(s) {
+    if (!s) return null;
+    s = String(s).trim();
+    let m;
+    if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/))) return mk(m[3], m[2], m[1]);
+    if ((m = s.match(new RegExp("^(\\d{1,2})(?:st|nd|rd|th)?\\s+" + MON_RE + ",?\\s+(\\d{4})$", "i")))) return mk(m[3], MONTHS[m[2].toLowerCase()], m[1]);
+    if ((m = s.match(new RegExp("^" + MON_RE + "\\s+(\\d{1,2}),?\\s+(\\d{4})$", "i")))) return mk(m[3], MONTHS[m[1].toLowerCase()], m[2]);
+    if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) return mk(m[1], m[2], m[3]);
+    if ((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return mk(m[1], m[2], m[3]);
+    return null;
+  }
+  const DATE_ANY = new RegExp("(\\d{1,2}[\\/.]\\d{1,2}[\\/.]\\d{4}|\\d{1,2}(?:st|nd|rd|th)?\\s+" + MON_RE + ",?\\s+\\d{4}|" + MON_RE + "\\s+\\d{1,2},?\\s+\\d{4})", "gi");
+  function allDates(text) {
+    const out = []; let m; DATE_ANY.lastIndex = 0;
+    while ((m = DATE_ANY.exec(text))) { const d = parseOne(m[1]); if (d) out.push({ date: d, index: m.index }); }
+    return out;
+  }
+  function firstDate(text) { const a = allDates(text); return a.length ? a[0].date : null; }
+  function dateAfter(text, label) {
+    const re = new RegExp(label + "\\s*:?\\s*" + DATE_ANY.source, "i");
+    const m = text.match(re); return m ? parseOne(m[1]) : null;
+  }
+  function ymd(d) { return d ? d.toISOString().slice(0, 10).replace(/-/g, "") : ""; }
+  function fyOf(d) { if (!d) return null; return d.getUTCMonth() >= 6 ? d.getUTCFullYear() + 1 : d.getUTCFullYear(); }
+  function isoOf(d) { return d ? d.toISOString().slice(0, 10) : ""; }
+
+  // Period like "1 Apr 2026 (dash) 30 Jun 2026" or "01 Jul 2026 to 30 Sep 2026" -> end date
+  function periodEnd(text) {
+    const re = new RegExp("(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})\\s*(?:[\\u2014\\u2013\\-]|to)\\s*(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i");
+    const m = text.match(re); return m ? parseOne(m[3]) : null;
+  }
+  function yearEnded(text) {
+    const m = text.match(/(?:year|period) ended\s+30(?:th)?\s+June,?\s+(\d{4})/i) || text.match(/(?:year|period) ended\s+30\/0?6\/(\d{4})/i);
+    return m ? +m[1] : null;
+  }
+
+  // ---------- names ----------
+  function titleCase(s) {
+    return s.toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase())
+      .replace(/\bPty\b/g, "Pty").replace(/\bLtd\b/g, "Ltd").replace(/\bAtf\b/g, "ATF").replace(/\bSmsf\b/g, "SMSF")
+      .replace(/\bMc([a-z])/g, (a, c) => "Mc" + c.toUpperCase()).replace(/\bO'([a-z])/g, (a, c) => "O'" + c.toUpperCase());
+  }
+  function tidyName(s) {
+    if (!s) return "";
+    s = s.replace(/\s+/g, " ").trim().replace(/[.,;:]+$/, "");
+    let m;
+    if ((m = s.match(/^([A-Z][A-Z'\-]+),\s*([A-Z][A-Z' \-]+)$/))) s = m[2] + " " + m[1]; // SURNAME, FIRST
+    if (s === s.toUpperCase() && /[A-Z]{3}/.test(s)) s = titleCase(s);
+    s = s.replace(/^The Trustee For\s+/i, "");
+    return s;
+  }
+  function folderDisplay(folder) {
+    return (folder || "").replace(/\bO_(?=[A-Z])/g, "O'").replace(/_/g, ".");
+  }
+  function safeFile(s) {
+    return s.replace(/["*:<>?\/\\|]/g, "").replace(/\s+/g, " ").trim();
+  }
+  function norm(s) {
+    return (s || "").toLowerCase().replace(/_/g, " ").replace(/&/g, " and ").replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\bsuper\b/g, "superannuation").replace(/\bsmsf\b/g, "superannuation fund")
+      .replace(/\b(the|trustee|trustees|for|atf|pty|ltd|limited|proprietary|as|of|co)\b/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function tokens(s) { return norm(s).split(" ").filter((t) => t.length > 1 || /\d/.test(t)); }
+  function isCompany(name) { return /\b(pty\.?|proprietary|limited|ltd\.?)\b/i.test(name || "") && !/\btrust\b|super ?fund|superannuation/i.test(name || ""); }
+
+  // Score a candidate name against client folders. Returns best matches.
+  function matchClient(candidates, folders) {
+    const res = new Map();
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const ct = tokens(cand); if (!ct.length) continue;
+      for (const f of folders) {
+        const ft = tokens(f); if (!ft.length) continue;
+        const fs = new Set(ft);
+        let hit = 0; for (const t of ct) if (fs.has(t)) hit++;
+        if (!hit) continue;
+        const cover = hit / ct.length, prec = hit / ft.length;
+        let score = cover * 0.7 + prec * 0.3;
+        if (norm(cand) === norm(f)) score = 1.2;
+        if (cover === 1 && ct.length >= 2) score += 0.15;
+        if (ct.length === 1 && ft.length > 1) score *= 0.5;
+        const prev = res.get(f) || 0; if (score > prev) res.set(f, score);
+      }
+    }
+    return [...res.entries()].sort((a, b) => b[1] - a[1]).map(([folder, score]) => ({ folder, score }));
+  }
+  // Look for any client folder name written in full in the text
+  function scanForClients(text, folders) {
+    const nt = " " + norm(text) + " ";
+    const hits = [];
+    for (const f of folders) {
+      const nf = norm(f); if (nf.length < 6 || nf.split(" ").length < 2) continue;
+      const i = nt.indexOf(" " + nf + " ");
+      if (i >= 0) hits.push({ folder: f, score: 0.9 + Math.min(nf.length, 40) / 400, index: i });
+    }
+    if (!hits.length) {
+      const sq = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+      for (const f of folders) {
+        const sf = norm(f).replace(/ /g, ""); if (sf.length < 8) continue;
+        const i = sq.indexOf(sf); if (i >= 0) hits.push({ folder: f, score: 0.85, index: i });
+      }
+    }
+    return hits.sort((a, b) => a.index - b.index || b.score - a.score);
+  }
+
+  // ---------- folders ----------
+  const F = {
+    bas: (c) => `${c.fy}/BAS and IAS/${c.ymd}`,
+    tr: (c) => `${c.fy}/Tax Returns and Financials`,
+    wp: (c) => c.forBas && c.basYmd ? `${c.basFy}/BAS and IAS/${c.basYmd}` : `${c.fy}/Workpapers`,
+    eng: () => "Engagement",
+    cc: () => "Corporate Compliance",
+    perm: () => "Permanent",
+    corr: () => "Correspondence",
+    entity: (c) => (isCompany(c.clientFolder) ? "Corporate Compliance" : "Permanent"),
+  };
+
+  // ---------- correspondence titles (approved list) ----------
+  const CORR = [
+    ["Quarterly GST & PAYG Instalment Notice", /quarterly\b.*\bGST\b.*\bPAYG instalment|GST and PAYG instalment notice/i],
+    ["Quarterly PAYG Instalment Notice", /quarterly PAYG instalment|PAYG instalment notice/i],
+    ["Quarterly GST", /quarterly GST|GST instalment notice/i],
+    ["ATO Statement of account - Income tax", /statement of account[\s\S]{0,200}income tax account|income tax account[\s\S]{0,200}statement of account/i],
+    ["ATO Statement of account - Integrated client", /statement of account[\s\S]{0,200}(integrated client|activity statement account)/i],
+    ["ATO Statement of account - Fringe benefits tax", /statement of account[\s\S]{0,200}fringe benefits tax/i],
+    ["ATO Statement of account - Superannuation guarantee employer", /statement of account[\s\S]{0,200}superannuation guarantee/i],
+    ["ATO running balance account statement", /running balance account/i],
+    ["ATO correspondence - Intent to disclose business tax debts notice", /intend(?:s)? to (?:report|disclose)[\s\S]{0,80}(?:tax )?debt/i],
+    ["ATO correspondence - Business tax debts disclosed to CRBs", /(?:disclosed|reported)[\s\S]{0,60}credit reporting bureau/i],
+    ["ATO correspondence - Potential prosecution and audit", /prosecution/i],
+    ["ATO correspondence - Debt collection warning", /debt collection|refer(?:red)? (?:your debt )?to (?:an? )?(?:external )?(?:debt )?collection/i],
+    ["ATO correspondence - Overdue debt", /overdue (?:tax )?debt|your debt is overdue/i],
+    ["ATO correspondence - Penalty for failure to lodge", /failure to lodge (?:on time )?penalty|penalty for failure to lodge/i],
+    ["ATO correspondence - Failure to lodge warning", /failure to lodge/i],
+    ["ATO correspondence - Overdue lodgement reminder", /overdue lodg(?:e)?ment/i],
+    ["ATO correspondence - Overdue tax returns", /overdue (?:income )?tax returns?/i],
+    ["ATO correspondence - Overdue activity statements", /overdue activity statements?/i],
+    ["ATO correspondence - Entry to PAYG instalment system", /(?:entry|entered|enter) (?:in)?to the PAYG instalment|welcome to PAYG instalments/i],
+    ["ATO correspondence - PAYG instalments no longer required", /no longer (?:need|required) to pay PAYG instalments|PAYG instalments no longer/i],
+    ["ATO correspondence - New PAYG instalment details", /new PAYG instalment (?:amount|rate|details)/i],
+    ["ATO correspondence - PAYG withholding cancellation", /PAYG withholding[\s\S]{0,60}cancel/i],
+    ["ATO correspondence - PAYG withholding registration", /PAYG withholding[\s\S]{0,60}regist/i],
+    ["ATO correspondence - New PAYG withholding details", /PAYG withholding[\s\S]{0,60}details/i],
+    ["ATO correspondence - GST cancellation", /GST[\s\S]{0,60}cancel/i],
+    ["ATO correspondence - GST period has changed", /GST (?:reporting )?period[\s\S]{0,40}chang/i],
+    ["ATO correspondence - GST registration", /GST[\s\S]{0,40}regist/i],
+    ["ATO correspondence - Backdated activity statement registration", /backdat/i],
+    ["ATO correspondence - Fuel tax credits registration", /fuel tax credits?[\s\S]{0,60}regist/i],
+    ["ATO correspondence - Taxable payments annual report", /taxable payments annual report/i],
+    ["ATO correspondence - Division 293 tax", /division 293/i],
+    ["ATO correspondence - Payment plan in arrears", /payment (?:plan|arrangement)[\s\S]{0,60}arrears/i],
+    ["ATO correspondence - Payment plan may default", /payment (?:plan|arrangement)[\s\S]{0,60}may default/i],
+    ["ATO correspondence - Defaulted payment arrangement", /(?:defaulted|has defaulted)[\s\S]{0,40}payment (?:plan|arrangement)|payment (?:plan|arrangement)[\s\S]{0,40}(?:has )?defaulted/i],
+    ["ATO correspondence - Confirming payment plan", /(?:confirm|confirmation)[\s\S]{0,60}payment (?:plan|arrangement)/i],
+    ["ATO correspondence - ABN cancellation", /ABN[\s\S]{0,40}cancel/i],
+    ["ATO correspondence - Refund reduced", /refund[\s\S]{0,40}(?:reduced|offset)/i],
+    ["ATO correspondence - Bank account details required", /bank account details/i],
+    ["ATO correspondence - Remission of GIC request declined", /remission[\s\S]{0,80}(?:declin|not remit|unable to remit)/i],
+    ["ATO correspondence - Remission of GIC", /remission of (?:the )?general interest charge|remission of GIC|GIC remission/i],
+    ["ATO correspondence - Rollover benefits unclaimed super", /unclaimed super/i],
+    ["ATO correspondence - Superannuation remittance advice", /remittance advice/i],
+    ["ATO correspondence - JobKeeper payments", /jobkeeper/i],
+    ["ATO correspondence - Super choice rules", /super(?:annuation)? choice|choice of (?:super )?fund/i],
+    ["ATO correspondence - Super guarantee changes", /super(?:annuation)? guarantee[\s\S]{0,60}chang/i],
+    ["ATO correspondence - Single touch payroll changes", /single touch payroll/i],
+    ["ATO correspondence - Stapled super fund request outcome", /stapled (?:super )?fund/i],
+    ["ATO correspondence - SMSF trustee obligation advice", /SMSF trustee[\s\S]{0,60}obligation|trustee obligations/i],
+    ["ATO correspondence - Tax file number", /tax file number|\bTFN\b/i],
+    ["ASIC correspondence - Deregistration application", /application[\s\S]{0,40}deregist/i],
+    ["ASIC correspondence - Company deregistration", /deregist/i],
+    ["ASIC correspondence - Form 492 returned", /492/i],
+    ["ASIC correspondence - Corporate key", /corporate key/i],
+    ["Queensland Revenue correspondence - Overdue payment", /Queensland Revenue Office|QRO/i],
+    ["Australian Bureau of Statistics correspondence - Survey reminder", /Australian Bureau of Statistics/i],
+  ];
+  const AGENCIES = ["Milton Graham", "Collection House", "Recoveriescorp", "Probe Collections", "Probe"];
+
+  // ---------- document types ----------
+  // name(c) uses: c.ymd, c.fy, c.client (name as it appears in the file), c.extra, c.signed, c.signedSuffix
+  const T = [];
+  function add(o) { T.push(o); }
+  const S = (c) => (c.signed ? " (Signed)" : "");
+
+  // BAS and IAS
+  add({ id: "bas_cover", group: "BAS and IAS", label: "BAS covering letter", date: "period", folder: F.bas, name: (c) => `${c.ymd} BAS Covering Letter` });
+  add({ id: "ias_cover", group: "BAS and IAS", label: "IAS covering letter", date: "period", folder: F.bas, name: (c) => `${c.ymd} IAS Covering Letter` });
+  add({ id: "bas", group: "BAS and IAS", label: "Business activity statement", date: "period", folder: F.bas, name: (c) => `${c.ymd} Business Activity Statement` });
+  add({ id: "ias", group: "BAS and IAS", label: "Instalment activity statement", date: "period", folder: F.bas, name: (c) => `${c.ymd} Instalment Activity Statement` });
+  add({ id: "as_collation", group: "BAS and IAS", label: "Activity statement collation pack", date: "period", folder: F.bas, keepSigned: true, name: (c) => `Correspondence ${c.ymd} Activity Statement${c.signedSuffix}` });
+  add({ id: "bas_wp", group: "BAS and IAS", label: "BAS workpaper", date: "period", folder: F.bas, name: (c) => `${c.ymd} - BAS Workpaper - ${c.client}` });
+  add({ id: "bas_slip", group: "BAS and IAS", label: "ATO payment slip (BAS)", date: "period", folder: F.bas, name: (c) => `${c.ymd} ATO Payment Slip` });
+
+  // Tax Returns and Financials
+  add({ id: "tr_cover", group: "Tax Returns and Financials", label: "Tax return cover letter", date: "fy", folder: F.tr, name: (c) => `${c.fy} Cover Letter` });
+  add({ id: "tr_progress", group: "Tax Returns and Financials", label: "Cover letter & progress report", date: "fy", folder: F.tr, name: (c) => `${c.fy} Cover Letter & Progress Report` });
+  add({ id: "itr", group: "Tax Returns and Financials", label: "Income tax return", date: "fy", folder: F.tr, canSign: true, name: (c) => `${c.fy} Income Tax Return - ${c.client}${S(c)}` });
+  add({ id: "itr_ato", group: "Tax Returns and Financials", label: "Income tax return (ATO copy)", date: "fy", folder: F.tr, name: (c) => `${c.fy} Income Tax Return (ATO Copy)` });
+  add({ id: "fs", group: "Tax Returns and Financials", label: "Financial statements", date: "fy", folder: F.tr, name: (c) => `${c.fy} Financial Statements` });
+  add({ id: "org", group: "Tax Returns and Financials", label: "Organisational chart", date: "fy", folder: F.tr, name: (c) => `${c.fy} Organisational Chart` });
+  add({ id: "tr_slip", group: "Tax Returns and Financials", label: "ATO payment slip (tax return)", date: "fy", folder: F.tr, name: (c) => `${c.fy} ATO Payment Slip` });
+  add({ id: "minutes", group: "Tax Returns and Financials", label: "Minutes (year end)", date: "fy", folder: F.tr, name: (c) => `${c.fy} Minutes` });
+  add({ id: "ye_group", group: "Tax Returns and Financials", label: "Year-end collation pack (group)", date: "fy", folder: F.tr, keepSigned: true, name: (c) => `Correspondence - ${c.fy} - Financial Statements and Income Tax Returns${c.signedSuffix}` });
+  add({ id: "ye_ind", group: "Tax Returns and Financials", label: "Year-end collation pack (individual)", date: "fy", folder: F.tr, keepSigned: true, name: (c) => `Correspondence - ${c.fy} - Income Tax Return${c.signedSuffix}` });
+  add({ id: "fbt_cover", group: "Tax Returns and Financials", label: "FBT cover letter", date: "fy", folder: F.tr, name: (c) => `${c.fy} FBT Cover Letter` });
+  add({ id: "fbt_collation", group: "Tax Returns and Financials", label: "FBT collation pack", date: "fy", folder: F.tr, keepSigned: true, name: (c) => `Correspondence - ${c.fy} - Fringe Benefits Tax Return${c.signedSuffix}` });
+  add({ id: "fbt", group: "Tax Returns and Financials", label: "FBT return", date: "fy", folder: F.tr, name: (c) => `${c.fy} Fringe Benefits Tax Return` });
+  add({ id: "audit_el", group: "Tax Returns and Financials", label: "SMSF audit engagement letter", date: "fy", folder: F.tr, name: (c) => `${c.fy} Audit Engagement Letter` });
+  add({ id: "audit_rep", group: "Tax Returns and Financials", label: "SMSF audit representation letter", date: "fy", folder: F.tr, name: (c) => `${c.fy} Audit Representation Letter` });
+
+  // Workpapers
+  add({ id: "ica", group: "Workpapers", label: "ATO ICA", date: "date", folder: F.wp, forBas: true, name: (c) => `${c.ymd} ATO ICA - ${c.client}` });
+  add({ id: "ita", group: "Workpapers", label: "ATO ITA", date: "date", folder: F.wp, forBas: true, name: (c) => `${c.ymd} ATO ITA - ${c.client}` });
+
+  // Engagement
+  add({ id: "el", group: "Engagement", label: "Engagement letter (signed)", date: "fy", folder: F.eng, name: (c) => `${c.fy} Engagement Letter - ${c.client}` });
+  add({ id: "proposal", group: "Engagement", label: "Engagement proposal (unsigned)", date: "fy", folder: F.eng, name: (c) => `${c.fy} Engagement Proposal - ${c.client}` });
+  add({ id: "fbt_el", group: "Engagement", label: "FBT engagement letter", date: "fy", folder: F.eng, name: (c) => `${c.fy} FBT Engagement Letter - ${c.client}` });
+  add({ id: "ethical", group: "Engagement", label: "Ethical clearance letter", date: "date", folder: F.eng, name: (c) => `${c.ymd} Ethical Clearance Letter` });
+
+  // Corporate Compliance
+  add({ id: "constitution", group: "Corporate Compliance", label: "Constitution", date: "date", folder: F.cc, name: (c) => `${c.ymd} Constitution - ${c.client}` });
+  add({ id: "cert_reg", group: "Corporate Compliance", label: "Certificate of registration", date: "date", folder: F.cc, name: (c) => `${c.ymd} Certificate of Registration - ${c.client}` });
+  add({ id: "f201", group: "Corporate Compliance", label: "Form 201 (pre-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Pre-incorporation Documents (Signed)` });
+  add({ id: "f362_post", group: "Corporate Compliance", label: "Form 362 (post-incorporation)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Post-incorporation Documents (Signed)` });
+  add({ id: "incorp", group: "Corporate Compliance", label: "Incorporation documents from binder", date: "date", folder: F.cc, name: (c) => `${c.ymd} Incorporation Documents (Signed)` });
+  add({ id: "asic_docs", group: "Corporate Compliance", label: "ASIC documents scanned together", date: "date", folder: F.cc, name: (c) => `${c.ymd} ASIC Documents - ${c.client}` });
+  add({ id: "corp_key", group: "Corporate Compliance", label: "Corporate key", date: "date", folder: F.cc, name: (c) => `${c.ymd} Corporate Key` });
+  add({ id: "dir_res", group: "Corporate Compliance", label: "Directors resolution", date: "date", folder: F.cc, name: (c) => `${c.ymd} - ${c.client} - Directors Resolution (Signed)` });
+  add({ id: "f484", group: "Corporate Compliance", label: "Form 484 (change to company details)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Form 484 - ${c.client}` });
+  add({ id: "f480", group: "Corporate Compliance", label: "Form 480 (annual review)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Form 480 - ${c.client}` });
+  add({ id: "f362_agent", group: "Corporate Compliance", label: "Form 362 (appointment of registered agent)", date: "date", folder: F.cc, name: (c) => `${c.ymd} Form 362 - ${c.client}` });
+  add({ id: "acs", group: "Corporate Compliance", label: "ASIC annual company statement", date: "date", folder: F.cc, name: (c) => `${c.ymd} Annual Company Statement - ${c.client}` });
+  add({ id: "extract", group: "Corporate Compliance", label: "ASIC current company extract", date: "date", folder: F.cc, name: (c) => `${c.ymd} ASIC Current Company Extract - ${c.client}` });
+  add({ id: "bn_reg", group: "Corporate Compliance", label: "Business name registration", date: "date", folder: F.cc, extra: "Business name", name: (c) => `${c.ymd} Business Name Registration - ${c.extra || c.client}` });
+
+  // Company or trust (folder follows the entity)
+  add({ id: "abn_app", group: "Corporate Compliance or Permanent", label: "ABN application", date: "date", folder: F.entity, name: (c) => `${c.ymd} ABN Application - ${c.client}` });
+  add({ id: "abn_advice", group: "Corporate Compliance or Permanent", label: "ABN advice", date: "date", folder: F.entity, name: (c) => `${c.ymd} ABN Advice - ${c.client}` });
+  add({ id: "tfn_conf", group: "Corporate Compliance or Permanent", label: "TFN application confirmation", date: "date", folder: F.entity, name: (c) => `${c.ymd} TFN Application Confirmation - ${c.client}` });
+
+  // Permanent
+  add({ id: "trust_deed", group: "Permanent", label: "Trust deed", date: "date", folder: F.perm, name: (c) => `${c.ymd} Trust Deed - ${c.client} (Signed)` });
+  add({ id: "change_trustee", group: "Permanent", label: "Deed of change of trustee", date: "date", folder: F.perm, name: (c) => `${c.ymd} Deed of Change of Trustee - ${c.client} (Signed)` });
+  add({ id: "variation", group: "Permanent", label: "Deed of variation", date: "date", folder: F.perm, name: (c) => `${c.ymd} Deed of Variation - ${c.client} (Signed)` });
+  add({ id: "fte", group: "Permanent", label: "Family trust election", date: "date", folder: F.perm, name: (c) => `${c.ymd} Family Trust Election - ${c.client} (Signed)` });
+  add({ id: "div7a", group: "Permanent", label: "Division 7A loan agreement", date: "fy", folder: F.perm, name: (c) => `${c.fy} Division 7A Loan Agreement - ${c.client} (Signed)` });
+  add({ id: "legal_scope", group: "Permanent", label: "Legal scope statement", date: "date", folder: F.perm, name: (c) => `${c.ymd} Legal Scope Statement` });
+  add({ id: "trustee_decl", group: "Permanent", label: "SMSF trustee declaration", date: "date", folder: F.perm, extra: "Trustee name", name: (c) => `${c.ymd} Trustee Declaration - ${c.extra || "[Trustee name]"}` });
+  add({ id: "smsf_minutes", group: "Permanent", label: "SMSF minutes", date: "date", folder: F.perm, extra: "Topic and member (e.g. Cessation of Membership - Jane Smith)", name: (c) => `${c.ymd} Minutes - ${c.extra || "[Topic - Member]"}` });
+  add({ id: "death_cert", group: "Permanent", label: "Death certificate", date: "date", folder: F.perm, extra: "Name of deceased", name: (c) => `${c.ymd} Death Certificate (${c.extra || "[Name]"})` });
+
+  // Correspondence
+  add({ id: "noa", group: "Correspondence", label: "Notice of assessment", date: "fy", folder: F.corr, name: (c) => `${c.fy} Notice of Assessment (${c.client})` });
+  add({ id: "ias_mailed", group: "Correspondence", label: "Instalment activity statement (mailed)", date: "date", folder: F.corr, name: (c) => `${c.ymd} Instalment Activity Statement (${c.client})` });
+  add({ id: "debt_agency", group: "Correspondence", label: "Debt collector letter", date: "date", folder: F.corr, extra: "Agency name", name: (c) => `${c.ymd} ${c.extra || "[Agency name]"} correspondence - Debt collection (${c.client})` });
+  CORR.forEach(([title], i) => add({ id: "corr" + i, group: "Correspondence", label: title.replace(/^ATO correspondence - |^ATO /, ""), date: "date", folder: F.corr, name: (c) => `${c.ymd} ${title} (${c.client})` }));
+
+  const BY_ID = Object.fromEntries(T.map((t) => [t.id, t]));
+
+  // ---------- detection ----------
+  function squash(s) { return s.toLowerCase().replace(/\s+/g, ""); }
+
+  function detect(rawText, fileName) {
+    const text = (rawText || "").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ");
+    const head = text.slice(0, 4000);
+    const sq = squash(text);
+    const fn = (fileName || "").replace(/\.[a-z0-9]+$/i, "");
+    const r = { type: null, confidence: 0, date: null, fy: null, clientCandidates: [], signed: false, signedSuffix: "", extra: "", notes: [] };
+    const set = (type, conf) => { if (!r.type || conf > r.confidence) { r.type = type; r.confidence = conf; } };
+    const has = (re) => re.test(text);
+
+    const sigMatch = fn.match(/((?:_signed)+)$/i);
+    r.signedSuffix = sigMatch ? sigMatch[1].toLowerCase() : "";
+    r.signed = !!sigMatch || /\bsigned\b/i.test(fn);
+
+    const atoPortal = /Print\s*[|_]\s*Australian Taxation Office|onlineservices\.ato\.gov\.au/i.test(text) || /Agent\s+INDEPTH BUSINESS ADVISORY/i.test(text);
+    const formType = (text.match(/Form type\s+([A-Z]{3})-?[A-Z0-9]*/) || [])[1];
+    const isAS = /Activity statement \d{4}\b/i.test(text) && !!formType;
+
+    // --- collation packs (filename first, then content)
+    if (/^Correspondence\b[\s\S]*Activity Statement/i.test(fn) || (/table of contents|\bcontents\b/i.test(head) && isAS && /\bDear\b/.test(text))) set("as_collation", 0.95);
+    if (/^Correspondence\s*-\s*\d{4}\s*-/i.test(fn) || /preparedfor/.test(sq.slice(0, 600))) {
+      if (/fringebenefitstaxreturn/.test(sq.slice(0, 1500)) || /fringe benefits tax/i.test(fn)) set("fbt_collation", 0.95);
+      else if (/financialstatements(&|and)incometaxreturns/.test(sq.slice(0, 1500)) || /financial statements/i.test(fn)) set("ye_group", 0.95);
+      else if (/incometaxreturn/.test(sq.slice(0, 1500)) || /income tax return/i.test(fn)) set("ye_ind", 0.93);
+    }
+
+    // --- ATO portal printouts
+    if (atoPortal) {
+      if (/Activity statement\s+\d{3}\b/i.test(text) && /Date generated/i.test(text)) set("ica", 0.97);
+      else if (/Income tax\s+\d{3}\b/i.test(text) && /Date generated/i.test(text)) set("ita", 0.97);
+      else if (/tax return/i.test(head) && /(receipt number|CUSTOMER COPY|Identification)/i.test(text)) set("itr_ato", 0.92);
+    }
+
+    // --- activity statements
+    if (isAS) {
+      if (formType === "IAS") set("ias", 0.95); else set("bas", 0.95);
+    }
+
+    // --- tax returns
+    if (/(Individual|Company|Trust|Partnership|Fund|Superannuation)\s+(?:Tax|income tax)\s+Return\s+\d{4}/i.test(text) || /\bTFN Recorded\s+(Individual|Company|Trust|Partnership)\s+Tax Return/i.test(text) ||
+        /(Individual|Company|Trust|Partnership) tax return \d{4}\s+\d{2}\/\d{2}\/\d{4} to/i.test(text) || /self[- ]managed superannuation fund annual return/i.test(text)) set("itr", 0.9);
+
+    // --- engagement (Ignition)
+    if (/Powered by Ignition|Document ID\s+prop_/i.test(text) || /Terms of Engagement/i.test(text) && /Indepth Accounting/i.test(text)) {
+      const accepted = /Status\s+Accepted|Accepted At/i.test(text);
+      const fbtOnly = /FBT Return|Fringe Benefits Tax Return/i.test(text) && !/Income Tax Return|Tax Returns\b/.test(text.slice(0, 3000));
+      set(fbtOnly ? "fbt_el" : accepted ? "el" : "proposal", 0.9);
+    }
+    if (/AUDIT ENGAGEMENT LETTER/i.test(text) || /Engagement Letter/i.test(head) && /SMSF (Registered )?Auditor/i.test(text)) set("audit_el", 0.92);
+    if (/Representation Letter/i.test(head)) set("audit_rep", 0.9);
+    if (/Ethical Clearance|Professional Clearance/i.test(head)) set("ethical", 0.9);
+
+    // --- year-end documents
+    if (/Compilation Report/i.test(text) && /(year|period) ended/i.test(text)) set("fs", 0.88);
+    if (/Organi[sz]ational Chart/i.test(head)) set("org", 0.9);
+    if (/payment slip/i.test(head)) set(periodEnd(text) ? "bas_slip" : "tr_slip", 0.75);
+    if (/Minutes of (?:a |the )?(?:Meeting|Resolution)/i.test(head)) {
+      if (/super(?:annuation)? fund/i.test(head) && !/financial (statements|report)|solvency/i.test(text)) set("smsf_minutes", 0.8);
+      else set("minutes", 0.8);
+    }
+    if (/Fringe benefits tax return \d{4}/i.test(text) && !/\bDear\b/.test(text)) set("fbt", 0.85);
+
+    // --- cover letters (usually Word documents)
+    if (/\bDear\b/.test(text) && !isAS) {
+      if (/progress report/i.test(text)) set("tr_progress", 0.8);
+      else if (/Business Activity Statement/i.test(text)) set("bas_cover", 0.78);
+      else if (/Instalment Activity Statement/i.test(text)) set("ias_cover", 0.78);
+      else if (/Fringe Benefits Tax/i.test(text) && /return/i.test(text)) set("fbt_cover", 0.72);
+      else if (/(income )?tax return/i.test(text) && /year ended/i.test(text)) set("tr_cover", 0.72);
+    }
+
+    // --- company documents
+    if (/Certificate of Registration of a Company/i.test(text)) set("cert_reg", 0.92);
+    if (/\bForm 201\b|Application for registration as an Australian company/i.test(text)) set("f201", 0.85);
+    if (/post[- ]incorporation/i.test(text)) set("f362_post", 0.8);
+    else if (/\bForm 362\b|appointment (?:or cessation )?of (?:a )?registered agent/i.test(text)) set("f362_agent", 0.82);
+    if (/\bForm 484\b|Change to company details/i.test(text)) set("f484", 0.86);
+    if (/\bForm 480\b/i.test(text)) set("f480", 0.84);
+    if (/annual (?:company )?statement/i.test(head) && /ASIC|Australian Securities/i.test(text)) set("acs", 0.84);
+    if (/(Current|Historical)[\s&]*(?:Historical )?(?:Company |Organisation )?Extract|ASIC Company Details|Organisation details/i.test(head) && /ASIC|Australian Securities/i.test(text)) set("extract", 0.8);
+    if (/corporate key/i.test(head) && !/annual (company )?statement/i.test(head)) set("corp_key", 0.7);
+    if (/business name/i.test(head) && /regist/i.test(head)) set("bn_reg", 0.75);
+    if (/Constitution/i.test(text.slice(0, 1500)) && /company|replaceable rules|members/i.test(text)) set("constitution", 0.8);
+    if (/consent to act as (?:a )?director/i.test(text) && /(share|member)/i.test(text)) set("incorp", 0.7);
+    if (/Resolution of (?:the )?(?:sole )?Director|Directors'? Resolution|Circular resolution/i.test(head)) set("dir_res", 0.8);
+
+    // --- registrations
+    if (/Application for (?:an )?Australian business number/i.test(text)) set("abn_app", 0.88);
+    if (/ABN Advice|Your ABN (?:registration|application) (?:has been )?(?:approved|successful)/i.test(head)) set("abn_advice", 0.86);
+    if (/Application confirmation/i.test(head) && /application reference number|tax file number|TFN/i.test(text)) set("tfn_conf", 0.8);
+
+    // --- trust and SMSF documents
+    if (/Deed of (?:Variation|Amendment)/i.test(head)) set("variation", 0.88);
+    else if (/Deed of (?:Retirement|Appointment|Change)|(?:Change|Retirement|Appointment) of (?:a |new )?Trustee/i.test(head)) set("change_trustee", 0.86);
+    else if (/Deed of Settlement|Trust Deed|Discretionary Trust|Unit Trust Deed|Deed of Trust/i.test(head)) set("trust_deed", 0.82);
+    if (/Family trust election/i.test(head)) set("fte", 0.85);
+    if (/Division 7A|Div ?7A/i.test(text) && /Loan Agreement/i.test(text)) set("div7a", 0.86);
+    if (/Legal scope statement/i.test(head)) set("legal_scope", 0.92);
+    if (/Trustee declaration/i.test(head)) set("trustee_decl", 0.85);
+    if (/Death Certificate|Certificate of Death|Death Registration/i.test(head)) set("death_cert", 0.85);
+
+    // --- correspondence (lowest priority, only when nothing stronger matched)
+    if (!r.type || r.confidence < 0.6) {
+      if (/notice of assessment/i.test(head)) set("noa", 0.8);
+      else {
+        const agency = AGENCIES.find((a) => new RegExp(a, "i").test(head));
+        if (agency) { set("debt_agency", 0.75); r.extra = agency === "Probe" ? "Probe Collections" : agency; }
+        else {
+          for (let i = 0; i < CORR.length; i++) if (CORR[i][1].test(head)) { set("corr" + i, i < 3 ? 0.65 : 0.6); break; }
+        }
+      }
+    }
+
+    // --- filename hints (weak) when content gave nothing
+    const FN_HINTS = [[/\bATO ICA\b/i, "ica"], [/\bATO ITA\b/i, "ita"], [/BAS Workpaper/i, "bas_wp"], [/Organi[sz]ational Chart/i, "org"], [/Financial Statements/i, "fs"],
+      [/Trust Deed|Deed of Settlement/i, "trust_deed"], [/Engagement (Letter)/i, "el"], [/Engagement Proposal/i, "proposal"], [/Minutes/i, "minutes"], [/Payment Slip/i, "tr_slip"],
+      [/Income Tax Return|\bITR\b|Tax Return/i, "itr"], [/Business Activity Statement/i, "bas"], [/Instalment Activity Statement/i, "ias"], [/Div ?7A/i, "div7a"],
+      [/Constitution/i, "constitution"], [/Certificate of Registration/i, "cert_reg"], [/Corporate Key/i, "corp_key"], [/Form 484/i, "f484"], [/F[or]+m 480/i, "f480"], [/Form 362/i, "f362_agent"],
+      [/ABN Advice/i, "abn_advice"], [/ABN Application|Application for ABN/i, "abn_app"], [/TFN application/i, "tfn_conf"], [/Legal Scope/i, "legal_scope"], [/Family Trust election/i, "fte"],
+      [/Trustee Declaration/i, "trustee_decl"], [/Ethical Clearance/i, "ethical"], [/Directors Resolution/i, "dir_res"], [/Annual Company Statement/i, "acs"], [/Death Certificate/i, "death_cert"]];
+    if (!r.type) for (const [re, id] of FN_HINTS) if (re.test(fn)) { set(id, 0.45); r.notes.push("Guessed from the file name"); break; }
+
+    // ---------- dates ----------
+    const pe = periodEnd(text);
+    const t = r.type;
+    if (["bas", "ias", "as_collation"].includes(t)) r.date = pe;
+    else if (["bas_cover", "ias_cover"].includes(t)) {
+      const m = text.match(new RegExp("(?:quarter|month|period) ended\\s+(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i"));
+      r.date = m ? parseOne(m[1]) : pe;
+    } else if (t === "bas_wp" || t === "bas_slip") r.date = pe || dateFromName(fn);
+    else if (t === "ica" || t === "ita") {
+      r.date = dateAfter(text, "Date generated");
+      const rng = text.match(new RegExp("from\\s+" + DATE_ANY.source + "\\s+to\\s+" + DATE_ANY.source, "i"));
+      const rangeEnd = rng ? parseOne(rng[rng.length - 1] || "") : null;
+      const all = rng ? allDates(rng[0]) : [];
+      r.fy = fyOf(all.length > 1 ? all[1].date : rangeEnd) || fyOf(r.date);
+    } else if (t === "itr" || t === "itr_ato") {
+      const m0 = text.match(/\b20(\d{2})-(\d{2}) tax return/i); if (m0) r.fy = 2000 + +m0[2];
+      let m = r.fy ? null : text.match(/Tax Return\s+(\d{4})(?![-\d])/i) || text.match(/\b(\d{4})\s+TFN Recorded/) || text.match(/tax return (\d{4})\s+\d{2}\/\d{2}\/\d{4}/i) || text.match(/annual return (\d{4})/i);
+      if (m) r.fy = +m[1];
+      if (!r.fy) { const m2 = text.match(/\b20(\d{2})-(\d{2}) tax return/i); if (m2) r.fy = 2000 + +m2[2]; }
+    } else if (["el", "proposal", "fbt_el"].includes(t)) {
+      r.date = dateAfter(text, "Effective Start Date") || dateAfter(text, "terms of engagement dated") || dateAfter(text, "Sent Date") || dateAfter(text, "Accepted At\\s+\\w+,?") || firstDate(text);
+      r.fy = fyOf(r.date);
+    } else if (["fs", "tr_cover", "tr_progress", "ye_group", "ye_ind", "minutes", "audit_el", "audit_rep", "org", "tr_slip"].includes(t)) {
+      r.fy = yearEnded(text);
+      if (!r.fy) { const m = text.match(/\b(20\d{2})\s+(?:Financial Statements|Annual Accounts|Organisational Chart)/i) || fn.match(/\b(20\d{2})\b/); if (m) r.fy = +m[1]; }
+    } else if (["fbt", "fbt_cover", "fbt_collation"].includes(t)) {
+      const m = text.match(/Fringe benefits tax return (\d{4})/i) || text.match(/year ended 31 March,? (\d{4})/i) || fn.match(/\b(20\d{2})\b/);
+      if (m) r.fy = +m[1];
+    } else if (t === "noa") {
+      const m = text.match(/year ended 30 June,? (\d{4})/i) || text.match(/income year[^0-9]{0,10}(\d{4})/i) || text.match(/\b(20\d{2})\s+notice of assessment/i);
+      if (m) r.fy = +m[1];
+      r.date = firstDate(head);
+    } else if (t === "div7a") {
+      r.date = firstDate(head); r.fy = fyOf(r.date);
+    } else if (t === "abn_advice") {
+      r.date = (text.match(new RegExp("Active\\s+(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i")) || [])[1] ? parseOne(text.match(new RegExp("Active\\s+(\\d{1,2}\\s+" + MON_RE + "\\s+\\d{4})", "i"))[1]) : firstDate(head);
+    } else if (t === "cert_reg" || t === "constitution") {
+      r.date = dateAfter(text, "registered (?:in|on)?") || dateAfter(text, "commenced registration on") || firstDate(head);
+    } else {
+      r.date = dateAfter(head, "Date of issue") || dateAfter(head, "Date") || dateFromName(fn) || firstDate(head);
+    }
+    if (!r.fy && r.date) r.fy = fyOf(r.date);
+    if (BY_ID[t] && BY_ID[t].date === "fy" && !r.fy) r.notes.push("Couldn't find the financial year");
+
+    // ---------- client name candidates ----------
+    const c = r.clientCandidates;
+    const grab = (re) => { const m = text.match(re); if (m && m[1]) c.push(tidyName(m[1])); };
+    if (t === "ica" || t === "ita") grab(/\bClient\s+(.+?)\s+(?:TFN|ABN)/);
+    grab(/Client name\s+(.+?)\s+(?:Form type|TFN|ABN)/);
+    grab(/\bName\s+(.+?)\s+Year\s+\d{4}/);
+    grab(/Name of (?:company|trust|partnership|fund)\s+(.+?)\s+(?:Australian business number|ABN|Address|Tax file)/i);
+    grab(/(?:INDIVIDUAL|COMPANY|TRUST|PARTNERSHIP) TAX RETURN\s+(.+?)\s+(?:Individual|Company|Trust|Partnership) Tax Return \d{4}/);
+    grab(/ACTIVITY STATEMENT\s+(.+?)\s+Activity statement \d{4}/);
+    grab(/Recipient\s+(.+?)\s+(?:Effective|Payment|Status|Document)/);
+    grab(/on behalf of\s+(.+?)\s+I hereby/i);
+    grab(/Compilation report to\s+(.+?)\s+We have/i);
+    grab(/Financial Statements\s+(.+?)\s+Compilation Report/i);
+    grab(/Organi[sz]ational Chart\s*-\s*(.+?)\s{2,}/i);
+    grab(/Trustees? (?:for|of)\s+(.+?)\s+Re:/i);
+    grab(/\bOf:\s*(.+?)\s+Held at/i);
+    grab(/\b([A-Z][A-Z'\-]{2,}, [A-Z][A-Z]+(?: [A-Z][A-Z]+)?)\b/);
+    grab(/ABN Advice Letter\s+[\d ]{11,14}\s+(.+?)\s+Active/i);
+    grab(/Your name:\s*(.+?)\s+Application reference/i);
+    grab(/Name of (?:the )?trust\s*:?\s+(.+?)\s{2,}/i);
+    if (["el", "proposal", "fbt_el"].includes(t)) { const first = text.trim().split(/\s{2,}|\n/)[0]; if (first && first.length < 80) c.push(tidyName(first)); }
+    for (let i = c.length - 1; i >= 0; i--) if (!c[i] || c[i].length > 70 || /declar|substantiation|signature/i.test(c[i])) c.splice(i, 1);
+
+    // extra field defaults
+    if (t === "trustee_decl" || t === "smsf_minutes") { const m = text.match(/\bI,\s+([A-Z][A-Za-z' \-]+?),/); if (m) r.extra = m[1]; }
+    if (t === "smsf_minutes") { const m = text.match(/Re:\s*(.+?)\s+Of:/i); if (m) r.extra = m[1].trim() + (r.extra ? " - " + r.extra : ""); }
+
+    return r;
+  }
+  function dateFromName(fn) { const m = (fn || "").match(/\b(20\d{2})(\d{2})(\d{2})\b/); return m ? mk(m[1], m[2], m[3]) : null; }
+
+  // Build the final name and folder from the row's current values
+  function build(row) {
+    const t = BY_ID[row.type]; if (!t) return { name: "", folder: "", missing: ["document type"] };
+    const d = row.date ? parseOne(row.date) : null;
+    const basD = row.basDate ? parseOne(row.basDate) : null;
+    const c = {
+      ymd: ymd(d), fy: row.fy || fyOf(d), client: row.clientName || folderDisplay(row.clientFolder), clientFolder: row.clientFolder || "",
+      extra: row.extra || "", signed: !!row.signed, signedSuffix: row.signedSuffix || (row.signed ? "_signed" : ""),
+      forBas: !!row.forBas, basYmd: ymd(basD), basFy: fyOf(basD),
+    };
+    const missing = [];
+    if (!row.clientFolder) missing.push("client");
+    if (t.date === "fy" ? !c.fy : !c.ymd) missing.push(t.date === "fy" ? "year" : "date");
+    if (t.extra && !row.extra) missing.push(t.extra.split(" (")[0].toLowerCase());
+    if (row.forBas && t.forBas && !c.basYmd) missing.push("BAS period");
+    const name = safeFile(t.name(c));
+    const folder = t.folder(c);
+    return { name, folder, missing, type: t };
+  }
+
+  const api = { TYPES: T, BY_ID, detect, build, matchClient, scanForClients, tidyName, folderDisplay, isCompany, parseOne, ymd, fyOf, isoOf, safeFile };
+  if (typeof module !== "undefined" && module.exports) module.exports = api; else root.NamingRules = api;
+})(this);
+</script>
+<script>
+"use strict";
+const CONFIG = {
+  clientId: "191dcf6b-f13e-491c-9556-280d809b602a",
+  tenantId: "e0690e4c-36c8-47bf-b896-bc1ecf320a7c",
+  driveId: "b!c82T-jhzL0eu4-AHjF9EKCLCKVMsd55FtWuNLmIYMZohHmghm0pKSbXCQuWfihYQ",
+  clientsRoot: "Clients",
+  scopes: ["Files.ReadWrite.All"],
+};
+const R = window.NamingRules;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const rows = [];
+let folders = [];
+let msalApp = null, account = null;
+
+/* ---------- messages ---------- */
+function note(html, kind) { $("#msg").innerHTML = html ? `<div class="notice ${kind || ""}">${html}</div>` : ""; }
+
+/* ---------- Microsoft sign-in ---------- */
+const configured = !/%%/.test(CONFIG.clientId + CONFIG.tenantId + CONFIG.driveId);
+async function initAuth() {
+  if (!configured || !window.msal) { $("#signin").hidden = true; note("Microsoft 365 sign-in isn't set up yet, so documents can be renamed and downloaded but not saved to SuiteFiles.", "warn"); return; }
+  msalApp = new msal.PublicClientApplication({ auth: { clientId: CONFIG.clientId, authority: "https://login.microsoftonline.com/" + CONFIG.tenantId, redirectUri: location.origin + location.pathname }, cache: { cacheLocation: "sessionStorage" } });
+  try { await msalApp.handleRedirectPromise(); } catch (e) {}
+  account = msalApp.getAllAccounts()[0] || null;
+  renderWho();
+  if (account) loadClients();
+}
+function renderWho() {
+  $("#who").textContent = account ? account.name || account.username : "";
+  $("#signin").textContent = account ? "Sign out" : "Sign in with Microsoft";
+}
+$("#signin").onclick = async () => {
+  if (!msalApp) return;
+  try {
+    if (account) { await msalApp.logoutPopup({ account }); account = null; folders = []; renderWho(); refreshAll(); return; }
+    const res = await msalApp.loginPopup({ scopes: CONFIG.scopes, prompt: "select_account" });
+    account = res.account; renderWho(); loadClients();
+  } catch (e) { note("Sign-in didn't finish. Try again, and allow pop-ups for this page if the window didn't open.", "warn"); }
+};
+async function token() {
+  try { return (await msalApp.acquireTokenSilent({ scopes: CONFIG.scopes, account })).accessToken; }
+  catch (e) { return (await msalApp.acquireTokenPopup({ scopes: CONFIG.scopes, account })).accessToken; }
+}
+const enc = (p) => p.split("/").map(encodeURIComponent).join("/");
+async function graph(method, url, body, headers = {}) {
+  const t = await token();
+  const res = await fetch(url.startsWith("http") ? url : "https://graph.microsoft.com/v1.0" + url, {
+    method, body, headers: Object.assign({ Authorization: "Bearer " + t }, body && !(body instanceof Blob) && typeof body === "string" ? { "Content-Type": "application/json" } : {}, headers),
+  });
+  return res;
+}
+async function loadClients() {
+  note('<span class="spin"></span>Loading the client list from SuiteFiles…');
+  try {
+    const out = []; let url = `/drives/${CONFIG.driveId}/root:/${enc(CONFIG.clientsRoot)}:/children?$select=name,folder&$top=999`;
+    while (url) {
+      const r = await graph("GET", url); if (!r.ok) throw new Error(r.status);
+      const j = await r.json(); j.value.forEach((v) => { if (v.folder && !/^zzz/i.test(v.name)) out.push(v.name); });
+      url = j["@odata.nextLink"] || null;
+    }
+    folders = out.sort((a, b) => a.localeCompare(b));
+    $("#clientList").innerHTML = folders.map((f) => `<option value="${esc(f)}">`).join("");
+    note(`Signed in. ${folders.length} client folders loaded from SuiteFiles.`);
+    rows.forEach((r) => { if (!r.clientChecked) assignClient(r); });
+    refreshAll();
+  } catch (e) { note("Couldn't load the client folders from SuiteFiles. Check you're signed in with your Indepth account, then reload the page.", "warn"); }
+}
+
+/* ---------- reading files ---------- */
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+let ocrWorker = null;
+async function ocr(img) {
+  if (!ocrWorker) ocrWorker = await Tesseract.createWorker("eng", 1, {
+    workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+    corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+    langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int",
+  });
+  const { data } = await ocrWorker.recognize(img);
+  return data.text || "";
+}
+async function readPdf(row, buf) {
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const n = pdf.numPages, take = Math.min(n, 25), parts = [];
+  for (let i = 1; i <= take; i++) {
+    const p = await pdf.getPage(i);
+    const tc = await p.getTextContent();
+    parts.push(tc.items.map((it) => it.str + (it.hasEOL ? "\n" : " ")).join(""));
+    if (i === 1) {
+      const vp = p.getViewport({ scale: 1 }), scale = 176 / vp.height, v2 = p.getViewport({ scale });
+      const cv = document.createElement("canvas"); cv.width = v2.width; cv.height = v2.height;
+      await p.render({ canvasContext: cv.getContext("2d"), viewport: v2 }).promise;
+      row.thumb = cv;
+    }
+  }
+  if (n > take) { const p = await pdf.getPage(n); const tc = await p.getTextContent(); parts.push(tc.items.map((it) => it.str).join(" ")); }
+  let text = parts.join("\n");
+  const firstChars = (parts[0] || "").replace(/\s/g, "").length + (parts[1] || "").replace(/\s/g, "").length;
+  if (firstChars < 80) {
+    row.ocr = true; setStatus(row, "busy", "Scanned document, reading the text…");
+    const out = [];
+    for (let i = 1; i <= Math.min(n, 2); i++) {
+      const p = await pdf.getPage(i), vp = p.getViewport({ scale: 2 });
+      const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+      await p.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      out.push(await ocr(cv));
+    }
+    text = out.join("\n") + "\n" + text;
+  }
+  return text;
+}
+async function readFile(row) {
+  const f = row.file, ext = (f.name.split(".").pop() || "").toLowerCase();
+  if (ext === "pdf") return readPdf(row, new Uint8Array(await f.arrayBuffer()));
+  if (["png", "jpg", "jpeg"].includes(ext)) {
+    const url = URL.createObjectURL(f); const img = new Image(); img.src = url; row.thumb = img;
+    row.ocr = true; setStatus(row, "busy", "Photo or scan, reading the text…");
+    return ocr(f);
+  }
+  if (ext === "docx" && window.mammoth) return (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
+  return "";
+}
+
+/* ---------- rows ---------- */
+function addFiles(list) {
+  for (const file of list) {
+    const row = { id: Math.random().toString(36).slice(2), file, state: "busy", msg: "Reading…", type: "", date: "", fy: "", clientFolder: "", clientName: "", extra: "", signed: false, signedSuffix: "", forBas: false, basDate: "", nameEdited: false, customName: "" };
+    rows.push(row); renderRow(row);
+  }
+  $("#drop").classList.add("compact");
+  $("#drop").innerHTML = "<strong>Add more documents</strong><span>drop or click</span>";
+  processQueue();
+}
+let processing = false;
+async function processQueue() {
+  if (processing) return; processing = true;
+  for (const row of rows) {
+    if (row.processed) continue; row.processed = true;
+    try {
+      const text = await readFile(row);
+      row.text = text;
+      const d = R.detect(text, row.file.name);
+      row.detection = d;
+      row.type = d.type || "";
+      row.date = R.isoOf(d.date);
+      row.fy = d.fy || "";
+      row.signed = d.signed; row.signedSuffix = d.signedSuffix; row.extra = d.extra || "";
+      if (["ica", "ita"].includes(row.type) && d.date) row.basDate = R.isoOf(prevQuarterEnd(d.date));
+      assignClient(row);
+      row.state = "ready";
+      if (!text.trim()) row.note = "Couldn't read any text, so pick the document type yourself.";
+      else if (!d.type) row.note = "Couldn't tell what this document is. Pick the type.";
+      else if (d.confidence < 0.6) row.note = "Best guess only. Check the type.";
+      else if (d.notes.length) row.note = d.notes.join(". ") + ".";
+    } catch (e) {
+      console.error(e); row.state = "ready"; row.note = "Couldn't open this file to read it. Pick the details yourself.";
+    }
+    renderRow(row);
+  }
+  processing = false;
+}
+function prevQuarterEnd(d) {
+  const y = d.getUTCFullYear(), m = d.getUTCMonth(); const qEndMonth = Math.floor(m / 3) * 3 - 1;
+  return qEndMonth < 0 ? new Date(Date.UTC(y - 1, 11, 31)) : new Date(Date.UTC(y, qEndMonth + 1, 0));
+}
+function assignClient(row) {
+  const d = row.detection; if (!d) return;
+  if (!folders.length) { row.clientFolder = d.clientCandidates[0] || ""; row.clientUnsure = true; return; }
+  const m = R.matchClient(d.clientCandidates, folders);
+  const sc = R.scanForClients(row.text || "", folders);
+  let pick = null, sure = false;
+  if (m[0] && m[0].score >= 0.75 && (!m[1] || m[0].score - m[1].score > 0.05)) { pick = m[0].folder; sure = m[0].score >= 0.95; }
+  else if (sc[0]) { pick = sc[0].folder; sure = false; }
+  else if (m[0] && m[0].score >= 0.5) { pick = m[0].folder; }
+  row.clientFolder = pick || ""; row.clientUnsure = !sure; row.clientName = "";
+}
+function current(row) { return R.build(row); }
+function setStatus(row, state, msg) { row.state = state; row.msg = msg; renderRow(row); }
+
+function typeOptions(sel) {
+  const groups = {}; R.TYPES.forEach((t) => (groups[t.group] = groups[t.group] || []).push(t));
+  return `<option value="">Choose a document type…</option>` + Object.entries(groups).map(([g, ts]) =>
+    `<optgroup label="${esc(g)}">${ts.map((t) => `<option value="${t.id}"${t.id === sel ? " selected" : ""}>${esc(t.label)}</option>`).join("")}</optgroup>`).join("");
+}
+function renderRow(row) {
+  let el = document.getElementById("r" + row.id);
+  if (!el) { el = document.createElement("div"); el.id = "r" + row.id; el.className = "row"; $("#list").appendChild(el); }
+  el.className = "row" + (row.state === "saved" ? " saved" : "");
+  if (row.state === "busy" && !row.type) {
+    el.innerHTML = `<div class="thumb">${row.file.name.split(".").pop()}</div><div><div class="oldname">${esc(row.file.name)}</div><div class="status"><span class="spin"></span>${esc(row.msg || "Reading…")}</div></div>`;
+    placeThumb(el, row); return;
+  }
+  const b = current(row), t = R.BY_ID[row.type];
+  const ext = "." + (row.file.name.split(".").pop() || "pdf").toLowerCase();
+  const finalName = (row.nameEdited ? row.customName : b.name) + ext;
+  row.finalName = finalName; row.finalFolder = b.folder;
+  const usesClient = t && /c\.client\b/.test(t.name.toString());
+  const crumbs = [CONFIG.clientsRoot, row.clientFolder || "(choose a client)"].concat(b.folder ? b.folder.split("/") : []);
+  const missing = b.missing.filter((x) => x !== "client" || !row.clientFolder);
+  const knownClient = !folders.length || folders.includes(row.clientFolder);
+  let status = "";
+  if (row.state === "saved") status = `<span class="status ok">Saved to SuiteFiles. ${row.webUrl ? `<a href="${esc(row.webUrl)}" target="_blank" rel="noopener">Open it</a>` : ""}</span>`;
+  else if (row.state === "saving") status = `<span class="status"><span class="spin"></span>${esc(row.msg)}</span>`;
+  else if (row.state === "exists") status = `<span class="status warn">A file with this name is already in that folder.</span> <button class="btn ghost small" data-act="replace">Replace it</button> <button class="btn ghost small" data-act="copy">Save as a copy</button>`;
+  else if (row.state === "error") status = `<span class="status bad">${esc(row.msg)}</span>`;
+  else if (missing.length) status = `<span class="status warn">Still needed: ${esc(missing.join(", "))}.</span>`;
+  else if (!knownClient) status = `<span class="status warn">That client folder isn't in SuiteFiles. Pick one from the list.</span>`;
+  else status = `<span class="status ok">Ready to save.</span>`;
+  if (row.note && row.state !== "saved") status += ` <span class="status warn">${esc(row.note)}</span>`;
+  const ready = row.state !== "saved" && row.state !== "saving" && !missing.length && knownClient && !!t;
+  row.ready = ready && row.state !== "exists";
+  const dateField = !t ? "" : t.date === "fy"
+    ? `<label>Financial year<input type="number" min="2000" max="2100" data-f="fy" value="${esc(row.fy)}"></label>`
+    : `<label>${t.date === "period" ? "Period end" : "Date on document"}<input type="date" data-f="date" value="${esc(row.date)}"></label>`;
+  const icaYear = t && t.forBas && !row.forBas ? `<label>Year folder<input type="number" min="2000" max="2100" data-f="fy" value="${esc(row.fy)}"></label>` : "";
+  el.innerHTML = `
+    <div class="thumb">${esc(ext.slice(1))}</div>
+    <div>
+      <div class="path">${crumbs.map((c, i) => (i ? '<span class="sep">›</span>' : "") + `<span>${i === 1 ? "<b>" + esc(c) + "</b>" : esc(c)}</span>`).join("")}</div>
+      <input class="newname" data-f="customName" value="${esc(finalName.slice(0, -ext.length))}" aria-label="New file name" ${row.state === "saved" ? "disabled" : ""}>
+      <div class="oldname">Was <s>${esc(row.file.name)}</s>${row.ocr ? " (read from a scan)" : ""}</div>
+      <div class="fields">
+        <label class="wide">Document type<select data-f="type">${typeOptions(row.type)}</select></label>
+        <label class="wide">Client folder<input list="clientList" data-f="clientFolder" value="${esc(row.clientFolder)}" class="${row.clientUnsure && row.clientFolder ? "unsure" : ""}" placeholder="Start typing a client name"></label>
+        ${dateField}${icaYear}
+        ${usesClient ? `<label>Name in file<input data-f="clientName" value="${esc(row.clientName || R.folderDisplay(row.clientFolder))}"></label>` : ""}
+        ${t && t.extra ? `<label class="wide">${esc(t.extra)}<input data-f="extra" value="${esc(row.extra)}"></label>` : ""}
+        ${t && (t.canSign || t.keepSigned) ? `<label class="check"><input type="checkbox" data-f="signed" ${row.signed ? "checked" : ""}>Signed copy</label>` : ""}
+        ${t && t.forBas ? `<label class="check"><input type="checkbox" data-f="forBas" ${row.forBas ? "checked" : ""}>Pulled for a BAS</label>${row.forBas ? `<label>BAS period end<input type="date" data-f="basDate" value="${esc(row.basDate)}"></label>` : ""}` : ""}
+      </div>
+      <div class="foot">${status}
+        <span class="spacer"></span>
+        ${row.state !== "saved" ? `<button class="link" data-act="remove">Remove</button><button class="btn ghost small" data-act="download" ${t ? "" : "disabled"}>Download renamed</button>${row.state === "exists" ? "" : `<button class="btn small" data-act="save" ${ready && account ? "" : "disabled"} title="${account ? "" : "Sign in to save to SuiteFiles"}">Save to SuiteFiles</button>`}` : ""}
+      </div>
+    </div>`;
+  placeThumb(el, row);
+  if (row.state === "saved") el.querySelectorAll("input,select").forEach((i) => (i.disabled = true));
+  updateBar();
+}
+function placeThumb(el, row) {
+  if (!row.thumb) return; const th = el.querySelector(".thumb"); th.textContent = "";
+  if (row.thumb.tagName === "CANVAS") { const c = document.createElement("img"); c.src = row.thumb.toDataURL(); c.alt = ""; th.appendChild(c); }
+  else { const c = row.thumb.cloneNode(); c.alt = ""; th.appendChild(c); }
+}
+function refreshAll() { rows.forEach(renderRow); updateBar(); }
+function updateBar() {
+  const live = rows.filter((r) => r.state !== "saved"), ready = live.filter((r) => r.ready), saved = rows.length - live.length;
+  $("#bar").classList.toggle("show", rows.length > 0);
+  $("#barText").textContent = `${rows.length} document${rows.length === 1 ? "" : "s"}: ${ready.length} ready, ${live.length - ready.length} to check${saved ? `, ${saved} saved` : ""}.`;
+  $("#saveAll").disabled = !ready.length || !account;
+  $("#saveAll").textContent = ready.length ? `Save ${ready.length} ready to SuiteFiles` : "Save all ready";
+  $("#clearSaved").hidden = !saved;
+}
+
+/* field edits */
+$("#list").addEventListener("input", (e) => {
+  const el = e.target.closest("[data-f]"); if (!el) return;
+  const row = rows.find((r) => "r" + r.id === e.target.closest(".row").id); const f = el.dataset.f;
+  if (f === "customName") { row.nameEdited = true; row.customName = el.value; row.finalName = el.value; return; }
+  if (el.type === "checkbox") return;
+  if (el.tagName === "SELECT") return;
+  row[f] = el.value;
+  if (f === "clientFolder") { row.clientUnsure = false; row.clientName = ""; }
+  if (f === "date" && R.BY_ID[row.type] && !R.BY_ID[row.type].forBas) row.fy = "";
+  clearTimeout(row._t); row._t = setTimeout(() => { const pos = el.selectionStart; renderRow(row); const again = document.querySelector(`#r${row.id} [data-f="${f}"]`); if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (x) {} } }, 350);
+});
+$("#list").addEventListener("change", (e) => {
+  const el = e.target.closest("[data-f]"); if (!el) return;
+  const row = rows.find((r) => "r" + r.id === e.target.closest(".row").id); const f = el.dataset.f;
+  if (f === "customName") return;
+  if (el.type === "checkbox") { row[f] = el.checked; if (f === "signed") row.signedSuffix = el.checked ? (row.signedSuffix || "_signed") : ""; }
+  else row[f] = el.value;
+  if (f === "type") { row.nameEdited = false; row.note = ""; }
+  if (f === "clientFolder") { row.clientUnsure = false; row.clientName = ""; }
+  if (f !== "customName") row.nameEdited = false;
+  if (["error", "exists"].includes(row.state)) row.state = "ready";
+  renderRow(row);
+});
+$("#list").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const row = rows.find((r) => "r" + r.id === e.target.closest(".row").id); const act = b.dataset.act;
+  if (act === "remove") { rows.splice(rows.indexOf(row), 1); document.getElementById("r" + row.id).remove(); updateBar(); }
+  if (act === "download") { const a = document.createElement("a"); a.href = URL.createObjectURL(row.file); a.download = row.finalName; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+  if (act === "save") saveRow(row, "fail");
+  if (act === "replace") { if (confirm(`Replace the existing ${row.finalName} in SuiteFiles?`)) saveRow(row, "replace"); }
+  if (act === "copy") saveRow(row, "rename");
+});
+$("#saveAll").onclick = async () => { for (const r of rows.filter((r) => r.ready && r.state !== "saved")) await saveRow(r, "fail"); };
+$("#clearSaved").onclick = () => { for (const r of rows.filter((r) => r.state === "saved")) { rows.splice(rows.indexOf(r), 1); document.getElementById("r" + r.id).remove(); } updateBar(); };
+
+/* ---------- saving ---------- */
+async function ensureFolder(path) {
+  const segs = path.split("/");
+  for (let i = 3; i <= segs.length; i++) {
+    const p = segs.slice(0, i).join("/");
+    const r = await graph("GET", `/drives/${CONFIG.driveId}/root:/${enc(p)}`);
+    if (r.ok) continue;
+    if (r.status !== 404) throw new Error("folder " + r.status);
+    const parent = segs.slice(0, i - 1).join("/");
+    const c = await graph("POST", `/drives/${CONFIG.driveId}/root:/${enc(parent)}:/children`, JSON.stringify({ name: segs[i - 1], folder: {}, "@microsoft.graph.conflictBehavior": "fail" }));
+    if (!c.ok && c.status !== 409) throw new Error("create " + c.status);
+  }
+}
+async function saveRow(row, conflict) {
+  const name = R.safeFile(row.finalName);
+  const dir = [CONFIG.clientsRoot, row.clientFolder].concat(row.finalFolder ? row.finalFolder.split("/") : []).join("/");
+  setStatus(row, "saving", "Saving to SuiteFiles…");
+  try {
+    const clientOk = await graph("GET", `/drives/${CONFIG.driveId}/root:/${enc(CONFIG.clientsRoot + "/" + row.clientFolder)}`);
+    if (!clientOk.ok) { setStatus(row, "error", "That client folder couldn't be found in SuiteFiles. Pick it from the list."); return; }
+    await ensureFolder(dir);
+    const full = `${dir}/${name}`; let res;
+    if (row.file.size <= 4 * 1024 * 1024) {
+      res = await graph("PUT", `/drives/${CONFIG.driveId}/root:/${enc(full)}:/content?@microsoft.graph.conflictBehavior=${conflict}`, row.file, { "Content-Type": row.file.type || "application/octet-stream" });
+    } else {
+      const s = await graph("POST", `/drives/${CONFIG.driveId}/root:/${enc(full)}:/createUploadSession`, JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": conflict } }));
+      if (s.status === 409) { setStatus(row, "exists", ""); return; }
+      if (!s.ok) throw new Error("session " + s.status);
+      const { uploadUrl } = await s.json(); const CH = 5 * 327680 * 2; let off = 0;
+      while (off < row.file.size) {
+        const end = Math.min(off + CH, row.file.size);
+        res = await fetch(uploadUrl, { method: "PUT", body: row.file.slice(off, end), headers: { "Content-Range": `bytes ${off}-${end - 1}/${row.file.size}` } });
+        if (!res.ok && res.status !== 202) throw new Error("chunk " + res.status);
+        off = end; setStatus(row, "saving", `Saving to SuiteFiles… ${Math.round((off / row.file.size) * 100)}%`);
+      }
+    }
+    if (res.status === 409) { setStatus(row, "exists", ""); return; }
+    if (!res.ok) throw new Error("upload " + res.status);
+    const j = await res.json().catch(() => ({}));
+    row.webUrl = j.webUrl || ""; row.savedAs = j.name || name;
+    setStatus(row, "saved", "");
+  } catch (e) {
+    console.error(e);
+    setStatus(row, "error", /401|403/.test(String(e)) ? "SuiteFiles said no. Check you're signed in with your Indepth account." : "Couldn't save this one. Check your connection and try again.");
+  }
+}
+
+/* ---------- drop zone ---------- */
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#file").click(); } };
+$("#file").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
+["dragenter", "dragover"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === "drop" || !e.relatedTarget) drop.classList.remove("over"); }));
+document.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]); });
+
+initAuth();
+</script>
+</body>
+</html>
