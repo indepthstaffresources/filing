@@ -254,7 +254,7 @@ footer{font-size:12px!important;margin-top:26px!important}
     let m;
     if ((m = s.match(/^([A-Z][A-Z'\-]+),\s*([A-Z][A-Z' \-]+)$/))) s = m[2] + " " + m[1]; // SURNAME, FIRST
     if (s === s.toUpperCase() && /[A-Z]{3}/.test(s)) s = titleCase(s);
-    s = s.replace(/^The Trustee For\s+/i, "");
+    s = s.replace(/^The Trustee For\s+/i, "").replace(/^(?:name\s+)?of\s+(?:the\s+)?(?:trust|company|partnership|fund|super(?:annuation)? fund|entity)\s*:?\s+/i, "");
     return s;
   }
   function folderDisplay(folder) {
@@ -647,8 +647,8 @@ footer{font-size:12px!important;margin-top:26px!important}
     const grab = (re) => { const m = text.match(re); if (m && m[1]) c.push(tidyName(m[1])); };
     if (t === "ica" || t === "ita") grab(/\bClient\s+(.+?)\s+(?:TFN|ABN)/);
     grab(/Client name\s+(.+?)\s+(?:Form type|TFN|ABN)/);
-    grab(/\bName\s+(.+?)\s+Year\s+\d{4}/);
-    grab(/Name of (?:company|trust|partnership|fund)\s+(.+?)\s+(?:Australian business number|ABN|Address|Tax file)/i);
+    grab(/\bName\s+(?!of\b)(.+?)\s+Year\s+\d{4}/);
+    grab(/Name of (?:the )?(?:company|trust|partnership|fund)\s+(.+?)\s+(?:Year\s+\d{4}|Australian business number|ABN|Address|Tax file|Declaration)/i);
     grab(/(?:INDIVIDUAL|COMPANY|TRUST|PARTNERSHIP) TAX RETURN\s+(.+?)\s+(?:Individual|Company|Trust|Partnership) Tax Return \d{4}/);
     grab(/ACTIVITY STATEMENT\s+(.+?)\s+Activity statement \d{4}/);
     grab(/Recipient\s+(.+?)\s+(?:Effective|Payment|Status|Document)/);
@@ -668,8 +668,8 @@ footer{font-size:12px!important;margin-top:26px!important}
     grab(/Your name:\s*(.+?)\s+Application reference/i);
 
     if (["el", "proposal", "fbt_el"].includes(t)) { const first = text.trim().split(/\s{2,}|\n/)[0]; if (first && first.length < 80) c.push(tidyName(first)); }
-    { const NOT = /indepth|acis services|evolve accounting|redchip|infotrack|ignition|australian taxation|securities and investments|cas ?360/i;
-      const seen = {}; const re = /\b([A-Z][A-Za-z0-9&'.\-]+(?: [A-Z&][A-Za-z0-9&'.\-]*){0,5} (?:Pty\.? Ltd\.?|PTY\.? LTD\.?|Family Trust|FAMILY TRUST|Super(?:annuation)? Fund|SUPER(?:ANNUATION)? FUND|Trust|TRUST))\b/g; let m;
+    { const NOT = /tfn recorded|tax return|indepth|acis services|evolve accounting|redchip|infotrack|ignition|australian taxation|securities and investments|cas ?360/i;
+      const seen = {}; const re = /\b([A-Z][A-Za-z0-9&'.\-]+(?: [A-Z&][A-Za-z0-9&'.\-]*){0,5} (?:Pty\.? Ltd\.?|PTY\.? LTD\.?|Family Trust|FAMILY TRUST|Super(?:annuation)? Fund|SUPER(?:ANNUATION)? FUND|Trust|TRUST)(?: (?:No\.?|Number) ?\d+)?)\b/g; let m;
       while ((m = re.exec(text))) { const n = tidyName(m[1]); if (!NOT.test(n) && n.length < 70) seen[n] = (seen[n] || 0) + 1; }
       Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([n]) => c.push(n)); }
     for (let i = c.length - 1; i >= 0; i--) if (!c[i] || c[i].length > 70 || /declar|substantiation|signature/i.test(c[i])) c.splice(i, 1);
@@ -912,6 +912,7 @@ function defaultClientName(row) {
   const doc = row.detection && row.detection.clientCandidates[0];
   const fold = R.folderDisplay(row.clientFolder);
   if (!doc) return fold;
+  if (row.clientFolder && !row.clientUnsure) return fold;
   const tok = (x) => x.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
   const ft = new Set(tok(fold));
   return tok(doc).every((w) => ft.has(w)) ? fold : doc;
